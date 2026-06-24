@@ -151,7 +151,10 @@ async function encodeGif(frames: Buffer[], frameDelayMs: number, scale: number):
     throw new Error("gifenc not installed");
   }
 
-  const { GIFEncoder, quantize, applyPalette } = gifenc;
+  const mod = gifenc.default ?? gifenc;
+  const GIFEncoder = mod.GIFEncoder;
+  const quantize = mod.quantize;
+  const applyPalette = mod.applyPalette;
 
   // Decode first frame to get dimensions
   const { createCanvas, loadImage } = await importCanvas();
