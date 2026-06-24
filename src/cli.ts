@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /// <reference types="node" />
 import { extract, extractWithScroll } from "./extractor.js";
 import { generate } from "./generator.js";

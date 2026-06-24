@@ -12,10 +12,11 @@
   "bin": {
     "cssgrab": "./dist/cli.js"
   },
-  "scripts": {
-    "dev": "tsx src/cli.ts",
-    "build": "tsc",
-    "typecheck": "tsc --noEmit"
+ "scripts": {
+  "dev": "tsx src/cli.ts",
+  "build": "tsc",
+  "postbuild": "node scripts/add-shebang.mjs",
+  "typecheck": "tsc --noEmit"
   },
   "license": "MIT",
   "dependencies": {
