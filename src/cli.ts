@@ -13,6 +13,61 @@ async function main() {
     return;
   }
 
+  // ── watch command ─────────────────────────────────────────────────────
+  if (command === "watch") {
+    if (!url) {
+      console.error("Usage: cssgrab watch <url> [--stack react+tailwind] [--gif <path>]");
+      process.exit(1);
+    }
+
+    const stackFlagIdx = rest.indexOf("--stack");
+    const stack = (stackFlagIdx !== -1 ? rest[stackFlagIdx + 1] : "react+tailwind") as Stack;
+    const gifFlagIdx = rest.indexOf("--gif");
+    const gifPath = gifFlagIdx !== -1 ? rest[gifFlagIdx + 1] : undefined;
+
+    const { watch } = await import("./watch.js");
+    const { selector: pickedSelector, url: resolvedUrl } = await watch(url);
+
+    console.log(`\n  ✓ Grabbed selector: \x1b[35m${pickedSelector}\x1b[0m`);
+    console.log(`\n🔍 Extracting...`);
+
+    const data = await extract(resolvedUrl, pickedSelector);
+    console.log(`  ✓ Extracted <${data.tag}>.${data.classList.join(".")}`);
+    console.log(`    ${Object.keys(data.computedStyles).length} props · ${data.keyframes.length} keyframes · ${data.webAnimations.length} web-animations`);
+
+    // Render GIF if animations found or --gif flag passed
+    const hasAnimation = data.webAnimations.length > 0 || data.keyframes.length > 0 ||
+      data.computedStyles["animation-name"] !== "none" ||
+      (data.computedStyles["transition-duration"] && data.computedStyles["transition-duration"] !== "0s");
+
+    if (hasAnimation || gifPath) {
+      const { renderGif } = await import("./gif.js");
+      await renderGif(data, { outputPath: gifPath }).catch((err: Error) => {
+        console.warn(`\n  ⚠ GIF preview skipped: ${err.message}`);
+        if (err.message.includes("gifenc")) {
+          console.warn(`    Run: npm i gifenc canvas\n`);
+        }
+      });
+    } else {
+      console.log(`\n  ℹ No animation detected — skipping GIF (use --gif <path> to force)`);
+    }
+
+    if (data.isCanvas) {
+      const result = await generate(data, { stack });
+      console.log(`\n⚠️  ${result.explanation}\n`);
+      console.log(result.canvasNote);
+      return;
+    }
+
+    console.log(`\n🤖 Generating ${stack} code...`);
+    const result = await generate(data, { stack });
+    console.log("\n--- CODE ---\n");
+    console.log(result.code);
+    console.log("\n--- EXPLANATION ---\n");
+    console.log(result.explanation);
+    return;
+  }
+
   // ── deep-scan command ───────────────────────────────────────────────────
   if (command === "deep-scan") {
     if (!url) {
@@ -127,12 +182,14 @@ async function main() {
   // ── grab command ──────────────────────────────────────────────────────
   if (command === "grab") {
     if (!url || !selector) {
-      console.error("Usage: cssgrab grab <url> <selector> [--stack react+tailwind]");
+      console.error("Usage: cssgrab grab <url> <selector> [--stack react+tailwind] [--gif <path>]");
       process.exit(1);
     }
 
     const stackFlagIdx = rest.indexOf("--stack");
     const stack = (stackFlagIdx !== -1 ? rest[stackFlagIdx + 1] : "react+tailwind") as Stack;
+    const gifFlagIdx = rest.indexOf("--gif");
+    const gifPath = gifFlagIdx !== -1 ? rest[gifFlagIdx + 1] : undefined;
 
     console.log(`\n🔍 Opening ${url} ...`);
     const data = await extract(url, selector);
@@ -143,6 +200,17 @@ async function main() {
     console.log(`   web animations: ${data.webAnimations.length}`);
     console.log(`   gsap calls intercepted: ${data.gsapCalls.length}`);
     console.log(`   is canvas: ${data.isCanvas}`);
+
+    // Render GIF if --gif flag or animations detected
+    if (gifPath || data.webAnimations.length > 0 || data.keyframes.length > 0) {
+      const { renderGif } = await import("./gif.js");
+      await renderGif(data, { outputPath: gifPath }).catch((err: Error) => {
+        console.warn(`\n  ⚠ GIF preview skipped: ${err.message}`);
+        if (err.message.includes("gifenc") || err.message.includes("canvas")) {
+          console.warn(`    Run: npm i gifenc canvas\n`);
+        }
+      });
+    }
 
     if (data.isCanvas) {
       const result = await generate(data, { stack });
@@ -162,11 +230,11 @@ async function main() {
 
   // ── mcp command ───────────────────────────────────────────────────────
   if (command === "mcp") {
-  await import("./mcp.js");
-  return;
-}
+    await import("./mcp.js");
+    return;
+  }
 
-  console.error(`Unknown command: ${command}. Use 'grab', 'scroll', 'deep-scan', 'repl', or 'mcp'.`);
+  console.error(`Unknown command: ${command}. Use 'watch', 'grab', 'scroll', 'deep-scan', 'repl', or 'mcp'.`);
   process.exit(1);
 }
 
