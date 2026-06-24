@@ -10,7 +10,7 @@ import { scan } from "./scanner.js";
 const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 // ── Welcome screen ─────────────────────────────────────────────────────────
 function Welcome() {
-    return (_jsxs(Box, { flexDirection: "column", alignItems: "center", marginBottom: 1, children: [_jsxs(Box, { borderStyle: "round", borderColor: "cyan", paddingX: 4, paddingY: 1, flexDirection: "row", gap: 4, children: [_jsxs(Box, { flexDirection: "column", alignItems: "center", minWidth: 28, children: [_jsx(Text, { color: "cyan", bold: true, children: "  ╔═══╗ ╔═══╗ ╔═══╗  " }), _jsxs(Text, { color: "cyan", children: ["  ", "║ C ║ ║ S ║ ║ S ║  "] }), _jsx(Text, { color: "cyan", children: "  ╚═══╝ ╚═══╝ ╚═══╝  " }), _jsx(Text, { children: " " }), _jsx(Text, { bold: true, color: "white", children: "CSSgrab" }), _jsx(Text, { color: "gray", dimColor: true, children: "v0.1.6" }), _jsx(Text, { children: " " }), _jsx(Text, { color: "gray", dimColor: true, children: "Grab any element's CSS" }), _jsx(Text, { color: "gray", dimColor: true, children: "and animations as code" })] }), _jsx(Box, { flexDirection: "column", children: Array.from({ length: 10 }).map((_, i) => (_jsx(Text, { color: "gray", dimColor: true, children: "\u2502" }, i))) }), _jsxs(Box, { flexDirection: "column", minWidth: 36, children: [_jsx(Text, { color: "yellow", bold: true, children: "Getting started" }), _jsx(Text, { children: " " }), _jsxs(Text, { color: "gray", children: ["  ", _jsx(Text, { color: "cyan", children: "use" }), " stripe.com"] }), _jsx(Text, { color: "gray", dimColor: true, children: "  set active URL" }), _jsx(Text, { children: " " }), _jsxs(Text, { color: "gray", children: ["  ", _jsx(Text, { color: "cyan", children: "scan" })] }), _jsx(Text, { color: "gray", dimColor: true, children: "  list interactive elements" }), _jsx(Text, { children: " " }), _jsxs(Text, { color: "gray", children: ["  ", _jsx(Text, { color: "cyan", children: "grab" }), " 3"] }), _jsx(Text, { color: "gray", dimColor: true, children: "  extract element by index" }), _jsx(Text, { children: " " }), _jsxs(Text, { color: "gray", children: ["  ", _jsx(Text, { color: "cyan", children: "scroll" })] }), _jsx(Text, { color: "gray", dimColor: true, children: "  capture scroll animations" })] })] }), _jsxs(Text, { color: "gray", dimColor: true, children: ["Type ", _jsx(Text, { color: "white", children: "help" }), " for all commands \u00B7 ctrl+c to exit"] })] }));
+    return (_jsxs(Box, { flexDirection: "column", alignItems: "center", marginBottom: 1, children: [_jsxs(Box, { borderStyle: "round", borderColor: "cyan", paddingX: 4, paddingY: 1, flexDirection: "row", gap: 4, children: [_jsxs(Box, { flexDirection: "column", alignItems: "center", minWidth: 28, children: [_jsx(Text, { color: "cyan", bold: true, children: "  ╔═══╗ ╔═══╗ ╔═══╗  " }), _jsxs(Text, { color: "cyan", children: ["  ", "║ C ║ ║ S ║ ║ S ║  "] }), _jsx(Text, { color: "cyan", children: "  ╚═══╝ ╚═══╝ ╚═══╝  " }), _jsx(Text, { children: " " }), _jsx(Text, { bold: true, color: "white", children: "CSSgrab" }), _jsx(Text, { color: "gray", dimColor: true, children: "v0.1.7" }), _jsx(Text, { children: " " }), _jsx(Text, { color: "gray", dimColor: true, children: "Grab any element's CSS" }), _jsx(Text, { color: "gray", dimColor: true, children: "and animations as code" })] }), _jsx(Box, { flexDirection: "column", children: Array.from({ length: 10 }).map((_, i) => (_jsx(Text, { color: "gray", dimColor: true, children: "\u2502" }, i))) }), _jsxs(Box, { flexDirection: "column", minWidth: 36, children: [_jsx(Text, { color: "yellow", bold: true, children: "Getting started" }), _jsx(Text, { children: " " }), _jsxs(Text, { color: "gray", children: ["  ", _jsx(Text, { color: "cyan", children: "use" }), " stripe.com"] }), _jsx(Text, { color: "gray", dimColor: true, children: "  set active URL" }), _jsx(Text, { children: " " }), _jsxs(Text, { color: "gray", children: ["  ", _jsx(Text, { color: "cyan", children: "scan" })] }), _jsx(Text, { color: "gray", dimColor: true, children: "  list interactive elements" }), _jsx(Text, { children: " " }), _jsxs(Text, { color: "gray", children: ["  ", _jsx(Text, { color: "cyan", children: "grab" }), " 3"] }), _jsx(Text, { color: "gray", dimColor: true, children: "  extract element by index" }), _jsx(Text, { children: " " }), _jsxs(Text, { color: "gray", children: ["  ", _jsx(Text, { color: "cyan", children: "watch" }), " stripe.com"] }), _jsx(Text, { color: "gray", dimColor: true, children: "  click-to-pick in browser" })] })] }), _jsxs(Text, { color: "gray", dimColor: true, children: ["Type ", _jsx(Text, { color: "white", children: "help" }), " for all commands \u00B7 ctrl+c to exit"] })] }));
 }
 // ── Prompt line ────────────────────────────────────────────────────────────
 function Prompt({ session, input }) {
@@ -54,7 +54,7 @@ function ScrollResults({ summary }) {
 // ── Help ───────────────────────────────────────────────────────────────────
 function Help() {
     const row = (cmd, desc) => (_jsxs(Box, { gap: 2, children: [_jsx(Text, { color: "cyan", children: cmd.padEnd(28) }), _jsx(Text, { color: "gray", dimColor: true, children: desc })] }, cmd));
-    return (_jsxs(Box, { borderStyle: "round", borderColor: "gray", flexDirection: "column", paddingX: 1, marginBottom: 1, children: [_jsx(Text, { color: "yellow", bold: true, children: "URL" }), row("use <url>", "set active URL"), _jsx(Text, { children: " " }), _jsx(Text, { color: "yellow", bold: true, children: "SCAN" }), row("scan", "list interactive elements"), row("scan <url>", "scan a different URL"), _jsx(Text, { children: " " }), _jsx(Text, { color: "yellow", bold: true, children: "GRAB" }), row("grab <n>", "grab by index from last scan"), row("grab <selector>", "grab by CSS selector"), row("grab <selector> <url>", "grab from specific URL"), _jsx(Text, { children: " " }), _jsx(Text, { color: "yellow", bold: true, children: "SCROLL" }), row("scroll", "scroll-scan active URL"), row("scroll <url>", "scroll-scan specific URL"), _jsx(Text, { children: " " }), _jsx(Text, { color: "yellow", bold: true, children: "SETTINGS" }), row("stack <name>", "react+tailwind · vue+css · html+css · next+tailwind"), row("url", "show active URL"), _jsx(Text, { children: " " }), _jsx(Text, { color: "yellow", bold: true, children: "OTHER" }), row("help", "show this message"), row("exit / quit / ctrl+c", "exit")] }));
+    return (_jsxs(Box, { borderStyle: "round", borderColor: "gray", flexDirection: "column", paddingX: 1, marginBottom: 1, children: [_jsx(Text, { color: "yellow", bold: true, children: "URL" }), row("use <url>", "set active URL"), _jsx(Text, { children: " " }), _jsx(Text, { color: "yellow", bold: true, children: "SCAN" }), row("scan", "list interactive elements"), row("scan <url>", "scan a different URL"), _jsx(Text, { children: " " }), _jsx(Text, { color: "yellow", bold: true, children: "GRAB" }), row("grab <n>", "grab by index from last scan"), row("grab <selector>", "grab by CSS selector"), row("grab <selector> <url>", "grab from specific URL"), _jsx(Text, { children: " " }), _jsx(Text, { color: "yellow", bold: true, children: "WATCH" }), row("watch", "open browser, click to pick element"), row("watch <url>", "watch a specific URL"), _jsx(Text, { children: " " }), _jsx(Text, { color: "yellow", bold: true, children: "GIF" }), row("gif <n>", "render last-grabbed element as GIF"), row("gif <selector>", "render selector as GIF"), row("gif <selector> <url>", "render from specific URL"), _jsx(Text, { children: " " }), _jsx(Text, { color: "yellow", bold: true, children: "SCROLL" }), row("scroll", "scroll-scan active URL"), row("scroll <url>", "scroll-scan specific URL"), _jsx(Text, { children: " " }), _jsx(Text, { color: "yellow", bold: true, children: "SETTINGS" }), row("stack <name>", "react+tailwind · vue+css · html+css · next+tailwind"), row("url", "show active URL"), _jsx(Text, { children: " " }), _jsx(Text, { color: "yellow", bold: true, children: "OTHER" }), row("help", "show this message"), row("exit / quit / ctrl+c", "exit")] }));
 }
 // ── Main App ───────────────────────────────────────────────────────────────
 function App() {
@@ -193,6 +193,112 @@ function App() {
                 }
                 break;
             }
+            case "watch": {
+                const watchUrl = args.length ? normaliseUrl(args[0]) : session.current.url;
+                if (!watchUrl) {
+                    pushHistory(_jsx(Text, { color: "red", children: "  No URL set. Run: use <url> or watch <url>" }, Date.now()));
+                    break;
+                }
+                pushHistory(_jsx(Text, { color: "cyan", children: "  Opening browser \u2014 click an element to select it" }, Date.now()));
+                startTimer();
+                setPhase({ kind: "watching", url: watchUrl, elapsed: 0 });
+                try {
+                    const { watch } = await import("./watch.js");
+                    const { selector: pickedSelector, url: resolvedUrl } = await watch(watchUrl);
+                    session.current.url = resolvedUrl;
+                    stopTimer();
+                    setPhase({ kind: "idle" });
+                    pushHistory(_jsxs(Text, { color: "green", children: ["  ✓ Selected: ", _jsx(Text, { color: "magenta", children: pickedSelector })] }, Date.now()));
+                    // Extract
+                    startTimer();
+                    setPhase({ kind: "extracting", selector: pickedSelector, elapsed: 0 });
+                    const data = await extract(resolvedUrl, pickedSelector);
+                    // Register in lastScan so gif <n> works immediately
+                    session.current.lastScan = [{
+                            selector: pickedSelector,
+                            tag: data.tag,
+                            text: "",
+                            hasTransition: false,
+                            hasAnimation: data.webAnimations.length > 0,
+                            role: "other",
+                        }];
+                    if (data.isCanvas) {
+                        stopTimer();
+                        setPhase({ kind: "idle" });
+                        pushHistory(_jsx(Text, { color: "yellow", children: "  \u26A0 Canvas element \u2014 no CSS to extract." }, Date.now()));
+                        break;
+                    }
+                    // Auto-render GIF if animations detected
+                    const hasAnim = data.webAnimations.length > 0 ||
+                        data.keyframes.length > 0 ||
+                        (data.computedStyles["animation-name"] ?? "none") !== "none" ||
+                        (data.computedStyles["transition-duration"] ?? "0s") !== "0s";
+                    if (hasAnim) {
+                        stopTimer();
+                        setPhase({ kind: "idle" });
+                        pushHistory(_jsx(Text, { color: "cyan", children: "  \uD83C\uDF9E  Rendering GIF preview..." }, Date.now()));
+                        const { renderGif } = await import("./gif.js");
+                        await renderGif(data, {}).catch((err) => {
+                            pushHistory(_jsxs(Text, { color: "yellow", children: ["  \u26A0 GIF skipped: ", err.message] }, Date.now()));
+                        });
+                    }
+                    else {
+                        stopTimer();
+                        setPhase({ kind: "idle" });
+                    }
+                    // Generate code
+                    let streamedTokens = "";
+                    startTimer();
+                    setPhase({ kind: "generating", tag: data.tag, elapsed: 0, tokens: "" });
+                    const result = await generate(data, { stack: session.current.stack }, (token) => {
+                        streamedTokens += token;
+                        setPhase({ kind: "generating", tag: data.tag, elapsed, tokens: streamedTokens });
+                    });
+                    stopTimer();
+                    setPhase({ kind: "idle" });
+                    pushHistory(_jsx(GrabResult, { code: result.code, explanation: result.explanation }, Date.now()));
+                }
+                catch (err) {
+                    stopTimer();
+                    setPhase({ kind: "idle" });
+                    pushHistory(_jsxs(Text, { color: "red", children: ["  Watch failed: ", err.message] }, Date.now()));
+                }
+                break;
+            }
+            case "gif": {
+                if (!args.length) {
+                    pushHistory(_jsx(Text, { color: "red", children: "  Usage: gif <n|selector> [url]" }, Date.now()));
+                    break;
+                }
+                if (args[1])
+                    session.current.url = normaliseUrl(args[1]);
+                if (!session.current.url) {
+                    pushHistory(_jsx(Text, { color: "red", children: "  No URL set. Run: use <url>" }, Date.now()));
+                    break;
+                }
+                const gifSelector = resolveSelector(args[0]);
+                if (!gifSelector) {
+                    pushHistory(_jsxs(Text, { color: "red", children: ["  No element #", args[0], " in last scan."] }, Date.now()));
+                    break;
+                }
+                startTimer();
+                setPhase({ kind: "extracting", selector: gifSelector, elapsed: 0 });
+                try {
+                    const data = await extract(session.current.url, gifSelector);
+                    stopTimer();
+                    setPhase({ kind: "idle" });
+                    pushHistory(_jsx(Text, { color: "cyan", children: "  \uD83C\uDF9E  Rendering GIF preview..." }, Date.now()));
+                    const { renderGif } = await import("./gif.js");
+                    await renderGif(data, {});
+                    pushHistory(_jsx(Text, { color: "green", children: "  \u2713 GIF rendered" }, Date.now()));
+                }
+                catch (err) {
+                    stopTimer();
+                    setPhase({ kind: "idle" });
+                    pushHistory(_jsxs(Text, { color: "red", children: ["  GIF failed: ", err.message] }, Date.now()));
+                }
+                break;
+            }
             case "scroll": {
                 if (args.length)
                     session.current.url = normaliseUrl(args[0]);
@@ -289,7 +395,7 @@ function App() {
         }
     });
     const busy = phase.kind !== "idle";
-    return (_jsxs(Box, { flexDirection: "column", children: [_jsx(Static, { items: history, children: (item, i) => _jsx(Box, { children: item }, i) }), phase.kind === "scanning" && (_jsx(Thinking, { label: `Scanning ${new URL(phase.url).hostname} ...`, elapsed: elapsed })), phase.kind === "scroll-scanning" && (_jsx(Thinking, { label: `Scroll-scanning ${new URL(phase.url).hostname} ...`, elapsed: elapsed })), phase.kind === "extracting" && (_jsx(Thinking, { label: `Extracting ${phase.selector} ...`, elapsed: elapsed })), phase.kind === "generating" && (_jsx(StreamingCode, { tokens: phase.tokens, elapsed: elapsed })), !busy && (_jsx(Prompt, { session: session.current, input: input }))] }));
+    return (_jsxs(Box, { flexDirection: "column", children: [_jsx(Static, { items: history, children: (item, i) => _jsx(Box, { children: item }, i) }), phase.kind === "watching" && (_jsx(Thinking, { label: `Browser open — click an element on ${new URL(phase.url).hostname} ...`, elapsed: elapsed })), phase.kind === "scanning" && (_jsx(Thinking, { label: `Scanning ${new URL(phase.url).hostname} ...`, elapsed: elapsed })), phase.kind === "scroll-scanning" && (_jsx(Thinking, { label: `Scroll-scanning ${new URL(phase.url).hostname} ...`, elapsed: elapsed })), phase.kind === "extracting" && (_jsx(Thinking, { label: `Extracting ${phase.selector} ...`, elapsed: elapsed })), phase.kind === "generating" && (_jsx(StreamingCode, { tokens: phase.tokens, elapsed: elapsed })), !busy && (_jsx(Prompt, { session: session.current, input: input }))] }));
 }
 // ── Entry ──────────────────────────────────────────────────────────────────
 export async function main() {
