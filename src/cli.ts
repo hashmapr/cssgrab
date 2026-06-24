@@ -8,7 +8,7 @@ import { main as startRepl } from "./repl.js";
 async function main() {
   const [, , command, url, selector, ...rest] = process.argv;
 
-  if (!command) {
+if (!command || command === "repl") {
   await startRepl();
   return;
 }
