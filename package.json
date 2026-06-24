@@ -22,6 +22,7 @@
   "dependencies": {
     "@inkjs/ui": "^2.0.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "gifenc": "^1.0.3",
     "ink": "^6.8.0",
     "ink-box": "^1.0.0",
     "ink-text-input": "^6.0.0",

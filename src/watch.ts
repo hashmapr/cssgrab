@@ -65,7 +65,7 @@ const OVERLAY_SCRIPT = `
     while (cur && cur !== document.body && depth < 5) {
       let part = cur.tagName.toLowerCase();
       const classes = Array.from(cur.classList)
-        .filter(c => !/^(active|hover|focus|selected|open|is-|js-)/.test(c))
+        .filter(c => !/^(active|hover|focus|selected|open|is-|js-|__cssgrab)/.test(c))
         .slice(0, 2);
       if (classes.length) part += '.' + classes.map(c => CSS.escape(c)).join('.');
       const parent = cur.parentElement;
@@ -105,8 +105,8 @@ const OVERLAY_SCRIPT = `
     if (selected) selected.classList.remove('__cssgrab_selected');
     selected = e.target;
     selected.classList.remove('__cssgrab_hover');
-    selected.classList.add('__cssgrab_selected');
     const sel = getSelector(selected);
+    selected.classList.add('__cssgrab_selected');
     window.__cssgrab_selected = sel;
     updateBadge();
     // Signal to Playwright via title mutation

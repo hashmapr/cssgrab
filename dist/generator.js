@@ -34,10 +34,14 @@ STRICT RULES:
 - This is a "${data.tag}" element with class "${data.classList.join(" ")}" — your output must be that same kind of element with these same visual properties.
 - You MUST output exactly two sections in this order, no exceptions:
   1. A fenced code block containing the component (e.g. \`\`\`jsx ... \`\`\`)
-  2. The exact line: ---EXPLANATION---
+  2. The EXACT line (outside and after the closing code fence): ---EXPLANATION---
   3. A 3-5 sentence plain-English explanation of what the component does visually.
 - The ---EXPLANATION--- line MUST appear AFTER the code block, not before.
+- NEVER put ---EXPLANATION--- or any explanation text inside the code fence.
 - Do not output anything before the code block.
+- NEVER use the original CSS class names from the source site (like "hds-button--primary"). Those classes only exist on that site.
+- You MUST inline ALL styles as Tailwind utility classes using the exact computed values provided below.
+- The output must look identical to the original without any external stylesheet.
 
 ${options.context ? `Project context: ${options.context}\n` : ""}
 Element HTML:
@@ -74,15 +78,38 @@ function filterRelevantVariables(cssVariables, computedStyles) {
     return relevant;
 }
 function splitCodeAndExplanation(raw) {
+    // Strip outer code fence if the whole response is wrapped in one
+    const unwrapped = raw.replace(/^```[\w+]*\n([\s\S]*?)```\s*$/m, "$1").trim();
     const marker = "---EXPLANATION---";
-    const idx = raw.indexOf(marker);
-    if (idx === -1)
-        return { code: raw.trim(), explanation: "" };
-    const codePart = raw.slice(0, idx).trim();
-    const explanationPart = raw.slice(idx + marker.length).trim();
-    const codeMatch = codePart.match(/```[\w+]*\n([\s\S]*?)```/);
+    const idx = unwrapped.indexOf(marker);
+    if (idx !== -1) {
+        const codePart = unwrapped.slice(0, idx).trim();
+        const explanationPart = unwrapped.slice(idx + marker.length).trim()
+            .replace(/^EXPLANATION:\s*/i, "");
+        // Strip inner code fence if present
+        const codeMatch = codePart.match(/```[\w+]*\n([\s\S]*?)```/)
+            || codePart.match(/```[\w+]*\n([\s\S]*)/);
+        return {
+            code: codeMatch ? codeMatch[1].trim() : codePart,
+            explanation: explanationPart,
+        };
+    }
+    // No marker — try to split on --- or just return code
+    const dashIdx = unwrapped.indexOf("\n---\n");
+    if (dashIdx !== -1) {
+        const codePart = unwrapped.slice(0, dashIdx).trim();
+        const codeMatch = codePart.match(/```[\w+]*\n([\s\S]*?)```/)
+            || codePart.match(/```[\w+]*\n([\s\S]*)/);
+        return {
+            code: codeMatch ? codeMatch[1].trim() : codePart,
+            explanation: unwrapped.slice(dashIdx + 5).trim().replace(/^EXPLANATION:\s*/i, ""),
+        };
+    }
+    // Last resort — strip any fences and return
+    const codeMatch = unwrapped.match(/```[\w+]*\n([\s\S]*?)```/)
+        || unwrapped.match(/```[\w+]*\n([\s\S]*)/);
     return {
-        code: codeMatch ? codeMatch[1].trim() : codePart,
-        explanation: explanationPart,
+        code: codeMatch ? codeMatch[1].trim() : unwrapped,
+        explanation: "",
     };
 }

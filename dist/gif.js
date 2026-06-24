@@ -114,6 +114,7 @@ async function encodeGif(frames, frameDelayMs, scale) {
     // Dynamic import — gifenc is optional
     let gifenc;
     try {
+        // @ts-ignore
         gifenc = await import("gifenc");
     }
     catch {
@@ -148,11 +149,13 @@ async function encodeGif(frames, frameDelayMs, scale) {
  */
 async function importCanvas() {
     try {
+        // @ts-ignore
         const mod = await import("canvas");
         return { createCanvas: mod.createCanvas, loadImage: mod.loadImage };
     }
     catch { /* try next */ }
     try {
+        // @ts-ignore
         const mod = await import("@napi-rs/canvas");
         return { createCanvas: mod.createCanvas, loadImage: mod.loadImage };
     }
