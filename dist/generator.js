@@ -32,10 +32,12 @@ function buildPrompt(data, options) {
 STRICT RULES:
 - Use ONLY the data below. Do not invent a different component (no generic "Card", no Lorem ipsum themes).
 - This is a "${data.tag}" element with class "${data.classList.join(" ")}" — your output must be that same kind of element with these same visual properties.
-- Output format is exactly two parts separated by the literal line ---EXPLANATION---
-  Part 1: a single fenced code block with the component.
-  Part 2: a 3-5 sentence plain-English explanation of the effect.
-- Do not skip the ---EXPLANATION--- marker.
+- You MUST output exactly two sections in this order, no exceptions:
+  1. A fenced code block containing the component (e.g. \`\`\`jsx ... \`\`\`)
+  2. The exact line: ---EXPLANATION---
+  3. A 3-5 sentence plain-English explanation of what the component does visually.
+- The ---EXPLANATION--- line MUST appear AFTER the code block, not before.
+- Do not output anything before the code block.
 
 ${options.context ? `Project context: ${options.context}\n` : ""}
 Element HTML:

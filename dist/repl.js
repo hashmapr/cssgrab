@@ -1,313 +1,297 @@
 #!/usr/bin/env node
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 /// <reference types="node" />
-import * as readline from "readline";
+import { useState, useEffect, useRef } from "react";
+import { render, Box, Text, useInput, useApp, Static } from "ink";
 import { extract } from "./extractor.js";
 import { generate } from "./generator.js";
 import { scan } from "./scanner.js";
-const session = {
-    url: null,
-    stack: "react+tailwind",
-    lastScan: [],
-};
-// ── colours ────────────────────────────────────────────────────────────────
-const c = {
-    reset: "\x1b[0m",
-    dim: "\x1b[2m",
-    bold: "\x1b[1m",
-    cyan: "\x1b[36m",
-    green: "\x1b[32m",
-    yellow: "\x1b[33m",
-    red: "\x1b[31m",
-    blue: "\x1b[34m",
-    magenta: "\x1b[35m",
-};
-function paint(color, text) {
-    return `${c[color]}${text}${c.reset}`;
+// ── Spinner frames ─────────────────────────────────────────────────────────
+const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+// ── Welcome screen ─────────────────────────────────────────────────────────
+function Welcome() {
+    return (_jsxs(Box, { flexDirection: "column", alignItems: "center", marginBottom: 1, children: [_jsxs(Box, { borderStyle: "round", borderColor: "cyan", paddingX: 4, paddingY: 1, flexDirection: "row", gap: 4, children: [_jsxs(Box, { flexDirection: "column", alignItems: "center", minWidth: 28, children: [_jsx(Text, { color: "cyan", bold: true, children: "  ╔═══╗ ╔═══╗ ╔═══╗  " }), _jsxs(Text, { color: "cyan", children: ["  ", "║ C ║ ║ S ║ ║ S ║  "] }), _jsx(Text, { color: "cyan", children: "  ╚═══╝ ╚═══╝ ╚═══╝  " }), _jsx(Text, { children: " " }), _jsx(Text, { bold: true, color: "white", children: "CSSgrab" }), _jsx(Text, { color: "gray", dimColor: true, children: "v0.1.6" }), _jsx(Text, { children: " " }), _jsx(Text, { color: "gray", dimColor: true, children: "Grab any element's CSS" }), _jsx(Text, { color: "gray", dimColor: true, children: "and animations as code" })] }), _jsx(Box, { flexDirection: "column", children: Array.from({ length: 10 }).map((_, i) => (_jsx(Text, { color: "gray", dimColor: true, children: "\u2502" }, i))) }), _jsxs(Box, { flexDirection: "column", minWidth: 36, children: [_jsx(Text, { color: "yellow", bold: true, children: "Getting started" }), _jsx(Text, { children: " " }), _jsxs(Text, { color: "gray", children: ["  ", _jsx(Text, { color: "cyan", children: "use" }), " stripe.com"] }), _jsx(Text, { color: "gray", dimColor: true, children: "  set active URL" }), _jsx(Text, { children: " " }), _jsxs(Text, { color: "gray", children: ["  ", _jsx(Text, { color: "cyan", children: "scan" })] }), _jsx(Text, { color: "gray", dimColor: true, children: "  list interactive elements" }), _jsx(Text, { children: " " }), _jsxs(Text, { color: "gray", children: ["  ", _jsx(Text, { color: "cyan", children: "grab" }), " 3"] }), _jsx(Text, { color: "gray", dimColor: true, children: "  extract element by index" }), _jsx(Text, { children: " " }), _jsxs(Text, { color: "gray", children: ["  ", _jsx(Text, { color: "cyan", children: "scroll" })] }), _jsx(Text, { color: "gray", dimColor: true, children: "  capture scroll animations" })] })] }), _jsxs(Text, { color: "gray", dimColor: true, children: ["Type ", _jsx(Text, { color: "white", children: "help" }), " for all commands \u00B7 ctrl+c to exit"] })] }));
 }
-// ── spinner ────────────────────────────────────────────────────────────────
-function spinner(label) {
-    const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-    let i = 0;
-    const id = setInterval(() => {
-        process.stdout.write(`\r  ${paint("cyan", frames[i % frames.length])} ${paint("dim", label)}`);
-        i++;
-    }, 80);
-    return () => {
-        clearInterval(id);
-        process.stdout.write("\r" + " ".repeat(label.length + 6) + "\r");
-    };
+// ── Prompt line ────────────────────────────────────────────────────────────
+function Prompt({ session, input }) {
+    const host = session.url ? new URL(session.url).hostname : null;
+    return (_jsxs(Box, { children: [host
+                ? _jsx(Text, { color: "cyan", bold: true, children: host })
+                : _jsx(Text, { color: "gray", dimColor: true, children: "no url" }), _jsx(Text, { color: "gray", dimColor: true, children: " \u00B7 " }), _jsx(Text, { color: "gray", dimColor: true, children: session.stack }), _jsx(Text, { children: "\n" }), _jsx(Text, { color: "green", bold: true, children: "\u203A " }), _jsx(Text, { children: input }), _jsx(Text, { color: "green", children: "\u258C" })] }));
 }
-// ── prompt ─────────────────────────────────────────────────────────────────
-function makePrompt() {
-    const url = session.url
-        ? paint("cyan", new URL(session.url).hostname)
-        : paint("dim", "no url");
-    const stack = paint("dim", session.stack);
-    return `${url} ${paint("dim", "·")} ${stack}\n${paint("green", "›")} `;
+// ── Thinking indicator ─────────────────────────────────────────────────────
+function Thinking({ label, elapsed }) {
+    const [frame, setFrame] = useState(0);
+    useEffect(() => {
+        const id = setInterval(() => setFrame(f => (f + 1) % SPINNER.length), 80);
+        return () => clearInterval(id);
+    }, []);
+    const secs = (elapsed / 1000).toFixed(1);
+    return (_jsxs(Box, { gap: 1, children: [_jsx(Text, { color: "cyan", children: SPINNER[frame] }), _jsx(Text, { color: "gray", dimColor: true, children: label }), _jsx(Text, { color: "gray", dimColor: true, children: "\u00B7" }), _jsxs(Text, { color: "yellow", children: [secs, "s"] })] }));
 }
-// ── helpers ────────────────────────────────────────────────────────────────
-function normaliseUrl(raw) {
-    if (!raw.startsWith("http"))
-        return `https://${raw}`;
-    return raw;
-}
-function resolveSelector(arg) {
-    const idx = parseInt(arg, 10);
-    if (!isNaN(idx)) {
-        const candidate = session.lastScan[idx - 1];
-        if (!candidate) {
-            console.log(paint("red", `  No element #${idx} in last scan. Run 'scan' first.`));
-            return null;
-        }
-        return candidate.selector;
-    }
-    return arg;
-}
-function printScanResults(candidates) {
+// ── Scan results ───────────────────────────────────────────────────────────
+function ScanResults({ candidates }) {
     if (!candidates.length) {
-        console.log(paint("yellow", "  No interactive elements found."));
-        return;
+        return _jsx(Text, { color: "yellow", children: "  No interactive elements found." });
     }
-    console.log();
-    candidates.forEach((el, i) => {
-        const num = paint("dim", `  ${String(i + 1).padStart(2)}.`);
-        const role = paint("cyan", el.role.padEnd(6));
-        const text = paint("bold", el.text.slice(0, 40).padEnd(42));
-        const anim = el.hasTransition ? paint("magenta", "⚡ transition") : "";
-        const kf = el.hasAnimation ? paint("blue", " ⟳ animation") : "";
-        console.log(`${num} ${role} ${text} ${anim}${kf}`);
-        console.log(paint("dim", `       ${el.selector}`));
+    return (_jsxs(Box, { flexDirection: "column", marginBottom: 1, children: [_jsx(Box, { flexDirection: "column", borderStyle: "round", borderColor: "gray", paddingX: 1, children: candidates.map((el, i) => (_jsxs(Box, { flexDirection: "column", marginBottom: i < candidates.length - 1 ? 1 : 0, children: [_jsxs(Box, { gap: 2, children: [_jsxs(Text, { color: "gray", dimColor: true, children: [String(i + 1).padStart(2), "."] }), _jsx(Text, { color: el.role === "button" ? "magenta" : "cyan", bold: true, children: el.role.padEnd(6) }), _jsx(Text, { bold: true, children: el.text.slice(0, 38) }), el.hasTransition && _jsx(Text, { color: "magenta", children: "\u26A1" }), el.hasAnimation && _jsx(Text, { color: "blue", children: "\u27F3" })] }), _jsx(Box, { children: _jsxs(Text, { color: "gray", dimColor: true, children: ["     ", el.selector.slice(0, 60), el.selector.length > 60 ? "…" : ""] }) })] }, i))) }), _jsxs(Text, { color: "gray", dimColor: true, children: ["  ", candidates.length, " elements \u00B7 grab <n> to extract"] })] }));
+}
+// ── Grab result ────────────────────────────────────────────────────────────
+function GrabResult({ code, explanation }) {
+    return (_jsxs(Box, { flexDirection: "column", marginBottom: 1, children: [_jsxs(Box, { borderStyle: "round", borderColor: "cyan", flexDirection: "column", paddingX: 1, children: [_jsx(Text, { color: "cyan", bold: true, children: "CODE" }), _jsx(Text, { children: " " }), _jsx(Text, { children: code })] }), explanation ? (_jsxs(Box, { borderStyle: "round", borderColor: "gray", flexDirection: "column", paddingX: 1, marginTop: 1, children: [_jsx(Text, { color: "gray", bold: true, children: "EXPLANATION" }), _jsx(Text, { children: " " }), _jsx(Text, { color: "gray", children: explanation })] })) : null] }));
+}
+// ── Streaming tokens ───────────────────────────────────────────────────────
+function StreamingCode({ tokens, elapsed }) {
+    const secs = (elapsed / 1000).toFixed(1);
+    const markerIdx = tokens.indexOf("---EXPLANATION---");
+    const visible = markerIdx !== -1 ? tokens.slice(0, markerIdx) : tokens;
+    return (_jsxs(Box, { flexDirection: "column", children: [_jsxs(Box, { gap: 1, marginBottom: 1, children: [_jsx(Text, { color: "cyan", bold: true, children: "\u2500\u2500 CODE" }), _jsx(Text, { color: "gray", dimColor: true, children: "streaming" }), _jsxs(Text, { color: "yellow", children: [secs, "s"] })] }), _jsx(Text, { children: visible }), _jsx(Text, { color: "green", children: "\u258C" })] }));
+}
+// ── Scroll results ─────────────────────────────────────────────────────────
+function ScrollResults({ summary }) {
+    return (_jsxs(Box, { flexDirection: "column", marginBottom: 1, children: [_jsxs(Box, { borderStyle: "round", borderColor: "cyan", flexDirection: "column", paddingX: 1, paddingY: 0, children: [_jsx(Text, { color: "cyan", bold: true, children: "Scroll-scan complete" }), _jsx(Text, { children: " " }), _jsxs(Box, { gap: 3, children: [_jsxs(Box, { flexDirection: "column", alignItems: "center", children: [_jsx(Text, { color: "cyan", bold: true, children: summary.keyframes }), _jsx(Text, { color: "gray", dimColor: true, children: "keyframes" })] }), _jsxs(Box, { flexDirection: "column", alignItems: "center", children: [_jsx(Text, { color: "cyan", bold: true, children: summary.animated }), _jsx(Text, { color: "gray", dimColor: true, children: "animated" })] }), _jsxs(Box, { flexDirection: "column", alignItems: "center", children: [_jsx(Text, { color: "cyan", bold: true, children: summary.gsap }), _jsx(Text, { color: "gray", dimColor: true, children: "gsap calls" })] }), _jsxs(Box, { flexDirection: "column", alignItems: "center", children: [_jsx(Text, { color: "magenta", bold: true, children: summary.scrollTriggered }), _jsx(Text, { color: "gray", dimColor: true, children: "scroll-triggered" })] })] }), summary.elements.length > 0 && (_jsxs(_Fragment, { children: [_jsx(Text, { children: " " }), _jsx(Text, { color: "gray", dimColor: true, bold: true, children: "Animated elements:" }), summary.elements.slice(0, 15).map((el, i) => (_jsxs(Box, { gap: 1, children: [_jsx(Text, { color: el.triggeredByScroll ? "magenta" : "gray", dimColor: true, children: el.triggeredByScroll ? "[scroll]" : "[page]  " }), _jsx(Text, { color: "gray", dimColor: true, children: el.selector.slice(0, 55) })] }, i)))] }))] }), _jsx(Text, { color: "gray", dimColor: true, children: "  grab <selector> to extract any element" })] }));
+}
+// ── Help ───────────────────────────────────────────────────────────────────
+function Help() {
+    const row = (cmd, desc) => (_jsxs(Box, { gap: 2, children: [_jsx(Text, { color: "cyan", children: cmd.padEnd(28) }), _jsx(Text, { color: "gray", dimColor: true, children: desc })] }, cmd));
+    return (_jsxs(Box, { borderStyle: "round", borderColor: "gray", flexDirection: "column", paddingX: 1, marginBottom: 1, children: [_jsx(Text, { color: "yellow", bold: true, children: "URL" }), row("use <url>", "set active URL"), _jsx(Text, { children: " " }), _jsx(Text, { color: "yellow", bold: true, children: "SCAN" }), row("scan", "list interactive elements"), row("scan <url>", "scan a different URL"), _jsx(Text, { children: " " }), _jsx(Text, { color: "yellow", bold: true, children: "GRAB" }), row("grab <n>", "grab by index from last scan"), row("grab <selector>", "grab by CSS selector"), row("grab <selector> <url>", "grab from specific URL"), _jsx(Text, { children: " " }), _jsx(Text, { color: "yellow", bold: true, children: "SCROLL" }), row("scroll", "scroll-scan active URL"), row("scroll <url>", "scroll-scan specific URL"), _jsx(Text, { children: " " }), _jsx(Text, { color: "yellow", bold: true, children: "SETTINGS" }), row("stack <name>", "react+tailwind · vue+css · html+css · next+tailwind"), row("url", "show active URL"), _jsx(Text, { children: " " }), _jsx(Text, { color: "yellow", bold: true, children: "OTHER" }), row("help", "show this message"), row("exit / quit / ctrl+c", "exit")] }));
+}
+// ── Main App ───────────────────────────────────────────────────────────────
+function App() {
+    const { exit } = useApp();
+    const [input, setInput] = useState("");
+    const [phase, setPhase] = useState({ kind: "idle" });
+    const [history, setHistory] = useState([_jsx(Welcome, {}, "welcome")]);
+    const [historyIndex, setHistoryIndex] = useState(-1);
+    const [cmdHistory, setCmdHistory] = useState([]);
+    const elapsedRef = useRef(null);
+    const [elapsed, setElapsed] = useState(0);
+    const session = useRef({
+        url: null,
+        stack: "react+tailwind",
+        lastScan: [],
     });
-    console.log();
-}
-function printHelp() {
-    const row = (cmd, desc) => `  ${paint("cyan", cmd.padEnd(30))} ${paint("dim", desc)}`;
-    console.log(`
-${paint("bold", "CSSgrab interactive REPL")}
-
-${paint("yellow", "URL")}
-${row("use <url>", "set active URL  (e.g. use stripe.com)")}
-
-${paint("yellow", "SCAN")}
-${row("scan", "list interactive elements on active URL")}
-${row("scan <url>", "scan a different URL (also sets it as active)")}
-
-${paint("yellow", "GRAB")}
-${row("grab <n>", "grab element #n from last scan")}
-${row("grab <selector>", "grab by CSS selector")}
-${row("grab <selector> <url>", "grab from a specific URL")}
-
-${paint("yellow", "SCROLL")}
-${row("scroll", "scroll-scan active URL, capture all animations")}
-${row("scroll <url>", "scroll-scan a specific URL")}
-
-${paint("yellow", "SETTINGS")}
-${row("stack <name>", "set output stack")}
-${row("", "  react+tailwind · vue+css · html+css · next+tailwind")}
-${row("url", "show active URL")}
-
-${paint("yellow", "OTHER")}
-${row("help", "show this message")}
-${row("exit / quit / ctrl+c", "exit")}
-`);
-}
-// ── command handlers ───────────────────────────────────────────────────────
-async function cmdUse(args) {
-    if (!args.length) {
-        console.log(paint("red", "  Usage: use <url>"));
-        return;
+    function startTimer() {
+        setElapsed(0);
+        if (elapsedRef.current)
+            clearInterval(elapsedRef.current);
+        elapsedRef.current = setInterval(() => setElapsed(e => e + 100), 100);
     }
-    session.url = normaliseUrl(args[0]);
-    console.log(paint("green", `  ✓ Active URL set to ${session.url}`));
-}
-async function cmdScan(args) {
-    if (args.length)
-        session.url = normaliseUrl(args[0]);
-    if (!session.url) {
-        console.log(paint("red", "  No URL set. Run: use <url>"));
-        return;
-    }
-    const stop = spinner(`Scanning ${session.url} ...`);
-    try {
-        session.lastScan = await scan(session.url);
-        stop();
-        printScanResults(session.lastScan);
-        console.log(paint("dim", `  ${session.lastScan.length} elements found. Use 'grab <n>' to extract one.`));
-    }
-    catch (err) {
-        stop();
-        console.log(paint("red", `  Scan failed: ${err.message}`));
-    }
-}
-async function cmdGrab(args) {
-    if (!args.length) {
-        console.log(paint("red", "  Usage: grab <n|selector> [url]"));
-        return;
-    }
-    if (args[1])
-        session.url = normaliseUrl(args[1]);
-    if (!session.url) {
-        console.log(paint("red", "  No URL set. Run: use <url>"));
-        return;
-    }
-    const selector = resolveSelector(args[0]);
-    if (!selector)
-        return;
-    // Stage 1 — browser
-    let stop = spinner(`Opening ${new URL(session.url).hostname} ...`);
-    let data;
-    try {
-        data = await extract(session.url, selector);
-        stop();
-    }
-    catch (err) {
-        stop();
-        console.log(paint("red", `  Grab failed: ${err.message}`));
-        return;
-    }
-    // Stage 2 — element found
-    console.log(`  ${paint("green", "✓")} ${paint("bold", `<${data.tag}>`)} ` +
-        `${paint("dim", data.classList.join(" "))} ` +
-        `${paint("dim", `· ${Object.keys(data.computedStyles).length} props`)}`);
-    if (data.isCanvas) {
-        console.log(paint("yellow", "\n  ⚠ Canvas element — no CSS to extract."));
-        console.log(paint("dim", "  Use frame sequences + canvas.drawImage() driven by scroll position.\n"));
-        return;
-    }
-    // Stage 3 — LLM streaming
-    console.log(`  ${paint("dim", `Generating ${session.stack} component ...`)}\n`);
-    console.log(paint("bold", "── CODE ──────────────────────────────────────────────────────"));
-    let streamedCode = false;
-    let fullOutput = "";
-    try {
-        const result = await generate(data, { stack: session.stack }, (token) => {
-            streamedCode = true;
-            process.stdout.write(token);
-            fullOutput += token;
-        });
-        // If streaming didn't fire (non-streaming provider), print now
-        if (!streamedCode) {
-            process.stdout.write(result.code);
-        }
-        // Print explanation (split from streamed output if needed)
-        const explanation = result.explanation ||
-            splitExplanation(fullOutput);
-        console.log("\n" + paint("bold", "\n── EXPLANATION ───────────────────────────────────────────────"));
-        console.log(explanation);
-        console.log(paint("bold", "──────────────────────────────────────────────────────────────\n"));
-    }
-    catch (err) {
-        console.log("\n" + paint("red", `  Generation failed: ${err.message}`));
-    }
-}
-function splitExplanation(raw) {
-    const marker = "---EXPLANATION---";
-    const idx = raw.indexOf(marker);
-    if (idx === -1)
-        return "";
-    return raw.slice(idx + marker.length).trim();
-}
-async function cmdScroll(args) {
-    if (args.length)
-        session.url = normaliseUrl(args[0]);
-    if (!session.url) {
-        console.log(paint("red", "  No URL set. Run: use <url>"));
-        return;
-    }
-    const stop = spinner(`Scroll-scanning ${new URL(session.url).hostname} ...`);
-    try {
-        const { extractWithScroll } = await import("./extractor.js");
-        const data = await extractWithScroll(session.url);
-        stop();
-        console.log(paint("green", `  ✓ Scroll-scan complete`));
-        console.log(`  ${paint("cyan", String(data.keyframes.length).padStart(4))} keyframes`);
-        console.log(`  ${paint("cyan", String(data.animatedElements.length).padStart(4))} animated elements`);
-        console.log(`  ${paint("cyan", String(data.gsapCalls.length).padStart(4))} GSAP calls`);
-        console.log(`  ${paint("cyan", String(data.mutationLog.filter((m) => m.isScrolling).length).padStart(4))} scroll-triggered class mutations\n`);
-        if (data.animatedElements.length) {
-            console.log(paint("bold", "  Animated elements:"));
-            data.animatedElements.slice(0, 20).forEach((el) => {
-                const tag = el.triggeredByScroll
-                    ? paint("magenta", "  [scroll] ")
-                    : paint("dim", "  [page]   ");
-                console.log(`${tag}${el.selector}`);
-            });
-            console.log(paint("dim", "\n  Use 'grab <selector>' to extract any of these.\n"));
+    function stopTimer() {
+        if (elapsedRef.current) {
+            clearInterval(elapsedRef.current);
+            elapsedRef.current = null;
         }
     }
-    catch (err) {
-        stop();
-        console.log(paint("red", `  Scroll-scan failed: ${err.message}`));
+    function pushHistory(node) {
+        setHistory(h => [...h, node]);
     }
-}
-function cmdStack(args) {
-    const valid = ["react+tailwind", "vue+css", "html+css", "next+tailwind"];
-    if (!args.length || !valid.includes(args[0])) {
-        console.log(paint("yellow", `  Valid stacks: ${valid.join(" · ")}`));
-        return;
+    function normaliseUrl(raw) {
+        if (!raw.startsWith("http"))
+            return `https://${raw}`;
+        return raw;
     }
-    session.stack = args[0];
-    console.log(paint("green", `  ✓ Stack set to ${session.stack}`));
-}
-// ── dispatch ───────────────────────────────────────────────────────────────
-async function dispatch(line) {
-    const parts = line.trim().split(/\s+/);
-    const cmd = parts[0].toLowerCase();
-    const args = parts.slice(1);
-    switch (cmd) {
-        case "use":
-            await cmdUse(args);
-            break;
-        case "scan":
-            await cmdScan(args);
-            break;
-        case "grab":
-            await cmdGrab(args);
-            break;
-        case "scroll":
-            await cmdScroll(args);
-            break;
-        case "stack":
-            cmdStack(args);
-            break;
-        case "url":
-            console.log(session.url
-                ? paint("cyan", `  ${session.url}`)
-                : paint("dim", "  No URL set."));
-            break;
-        case "help":
-            printHelp();
-            break;
-        case "exit":
-        case "quit":
-            console.log(paint("dim", "\n  bye\n"));
-            process.exit(0);
-        case "": break;
-        default:
-            console.log(paint("red", `  Unknown command: ${cmd}. Type 'help' for usage.`));
+    function resolveSelector(arg) {
+        const idx = parseInt(arg, 10);
+        if (!isNaN(idx)) {
+            const candidate = session.current.lastScan[idx - 1];
+            if (!candidate)
+                return null;
+            return candidate.selector;
+        }
+        return arg;
     }
+    async function runCommand(line) {
+        const parts = line.trim().split(/\s+/);
+        const cmd = parts[0].toLowerCase();
+        const args = parts.slice(1);
+        setCmdHistory(h => [line, ...h]);
+        setHistoryIndex(-1);
+        switch (cmd) {
+            case "use": {
+                if (!args.length) {
+                    pushHistory(_jsx(Text, { color: "red", children: "  Usage: use <url>" }, Date.now()));
+                    break;
+                }
+                session.current.url = normaliseUrl(args[0]);
+                pushHistory(_jsxs(Text, { color: "green", children: ["  \u2713 Active URL \u2192 ", session.current.url] }, Date.now()));
+                break;
+            }
+            case "scan": {
+                if (args.length)
+                    session.current.url = normaliseUrl(args[0]);
+                if (!session.current.url) {
+                    pushHistory(_jsx(Text, { color: "red", children: "  No URL set. Run: use <url>" }, Date.now()));
+                    break;
+                }
+                startTimer();
+                setPhase({ kind: "scanning", url: session.current.url, elapsed: 0 });
+                try {
+                    const candidates = await scan(session.current.url);
+                    session.current.lastScan = candidates;
+                    stopTimer();
+                    setPhase({ kind: "idle" });
+                    pushHistory(_jsx(ScanResults, { candidates: candidates }, Date.now()));
+                }
+                catch (err) {
+                    stopTimer();
+                    setPhase({ kind: "idle" });
+                    pushHistory(_jsxs(Text, { color: "red", children: ["  Scan failed: ", err.message] }, Date.now()));
+                }
+                break;
+            }
+            case "grab": {
+                if (!args.length) {
+                    pushHistory(_jsx(Text, { color: "red", children: "  Usage: grab <n|selector> [url]" }, Date.now()));
+                    break;
+                }
+                if (args[1])
+                    session.current.url = normaliseUrl(args[1]);
+                if (!session.current.url) {
+                    pushHistory(_jsx(Text, { color: "red", children: "  No URL set. Run: use <url>" }, Date.now()));
+                    break;
+                }
+                const selector = resolveSelector(args[0]);
+                if (!selector) {
+                    pushHistory(_jsxs(Text, { color: "red", children: ["  No element #", args[0], " in last scan."] }, Date.now()));
+                    break;
+                }
+                startTimer();
+                setPhase({ kind: "extracting", selector, elapsed: 0 });
+                let data;
+                try {
+                    data = await extract(session.current.url, selector);
+                }
+                catch (err) {
+                    stopTimer();
+                    setPhase({ kind: "idle" });
+                    pushHistory(_jsxs(Text, { color: "red", children: ["  Extract failed: ", err.message] }, Date.now()));
+                    break;
+                }
+                if (data.isCanvas) {
+                    stopTimer();
+                    setPhase({ kind: "idle" });
+                    pushHistory(_jsx(Text, { color: "yellow", children: "  \u26A0 Canvas element \u2014 no CSS to extract." }, Date.now()));
+                    break;
+                }
+                startTimer();
+                let streamedTokens = "";
+                setPhase({ kind: "generating", tag: data.tag, elapsed: 0, tokens: "" });
+                try {
+                    const result = await generate(data, { stack: session.current.stack }, (token) => {
+                        streamedTokens += token;
+                        setPhase({ kind: "generating", tag: data.tag, elapsed, tokens: streamedTokens });
+                    });
+                    stopTimer();
+                    setPhase({ kind: "idle" });
+                    pushHistory(_jsx(GrabResult, { code: result.code, explanation: result.explanation }, Date.now()));
+                }
+                catch (err) {
+                    stopTimer();
+                    setPhase({ kind: "idle" });
+                    pushHistory(_jsxs(Text, { color: "red", children: ["  Generation failed: ", err.message] }, Date.now()));
+                }
+                break;
+            }
+            case "scroll": {
+                if (args.length)
+                    session.current.url = normaliseUrl(args[0]);
+                if (!session.current.url) {
+                    pushHistory(_jsx(Text, { color: "red", children: "  No URL set. Run: use <url>" }, Date.now()));
+                    break;
+                }
+                startTimer();
+                setPhase({ kind: "scroll-scanning", url: session.current.url, elapsed: 0 });
+                try {
+                    const { extractWithScroll } = await import("./extractor.js");
+                    const data = await extractWithScroll(session.current.url);
+                    stopTimer();
+                    setPhase({ kind: "idle" });
+                    const summary = {
+                        keyframes: data.keyframes.length,
+                        animated: data.animatedElements.length,
+                        gsap: data.gsapCalls.length,
+                        scrollTriggered: data.mutationLog.filter((m) => m.isScrolling).length,
+                        elements: data.animatedElements.slice(0, 15).map((el) => ({
+                            selector: el.selector,
+                            triggeredByScroll: el.triggeredByScroll,
+                        })),
+                    };
+                    pushHistory(_jsx(ScrollResults, { summary: summary }, Date.now()));
+                }
+                catch (err) {
+                    stopTimer();
+                    setPhase({ kind: "idle" });
+                    pushHistory(_jsxs(Text, { color: "red", children: ["  Scroll-scan failed: ", err.message] }, Date.now()));
+                }
+                break;
+            }
+            case "stack": {
+                const valid = ["react+tailwind", "vue+css", "html+css", "next+tailwind"];
+                if (!args.length || !valid.includes(args[0])) {
+                    pushHistory(_jsxs(Text, { color: "yellow", children: ["  Valid stacks: ", valid.join(" · ")] }, Date.now()));
+                    break;
+                }
+                session.current.stack = args[0];
+                pushHistory(_jsxs(Text, { color: "green", children: ["  \u2713 Stack \u2192 ", session.current.stack] }, Date.now()));
+                break;
+            }
+            case "url":
+                pushHistory(session.current.url
+                    ? _jsxs(Text, { color: "cyan", children: ["  ", session.current.url] }, Date.now())
+                    : _jsx(Text, { color: "gray", dimColor: true, children: "  No URL set." }, Date.now()));
+                break;
+            case "help":
+                pushHistory(_jsx(Help, {}, Date.now()));
+                break;
+            case "exit":
+            case "quit":
+                exit();
+                break;
+            case "":
+                break;
+            default:
+                pushHistory(_jsxs(Text, { color: "red", children: ["  Unknown command: ", cmd, ". Type 'help' for usage."] }, Date.now()));
+        }
+    }
+    useInput((char, key) => {
+        if (phase.kind !== "idle")
+            return;
+        if (key.return) {
+            const line = input.trim();
+            setInput("");
+            if (line)
+                runCommand(line);
+            return;
+        }
+        if (key.backspace || key.delete) {
+            setInput(i => i.slice(0, -1));
+            return;
+        }
+        if (key.upArrow) {
+            const next = Math.min(historyIndex + 1, cmdHistory.length - 1);
+            setHistoryIndex(next);
+            setInput(cmdHistory[next] ?? "");
+            return;
+        }
+        if (key.downArrow) {
+            const next = Math.max(historyIndex - 1, -1);
+            setHistoryIndex(next);
+            setInput(next === -1 ? "" : cmdHistory[next] ?? "");
+            return;
+        }
+        if (key.ctrl && char === "c") {
+            exit();
+            return;
+        }
+        if (!key.ctrl && !key.meta && char) {
+            setInput(i => i + char);
+        }
+    });
+    const busy = phase.kind !== "idle";
+    return (_jsxs(Box, { flexDirection: "column", children: [_jsx(Static, { items: history, children: (item, i) => _jsx(Box, { children: item }, i) }), phase.kind === "scanning" && (_jsx(Thinking, { label: `Scanning ${new URL(phase.url).hostname} ...`, elapsed: elapsed })), phase.kind === "scroll-scanning" && (_jsx(Thinking, { label: `Scroll-scanning ${new URL(phase.url).hostname} ...`, elapsed: elapsed })), phase.kind === "extracting" && (_jsx(Thinking, { label: `Extracting ${phase.selector} ...`, elapsed: elapsed })), phase.kind === "generating" && (_jsx(StreamingCode, { tokens: phase.tokens, elapsed: elapsed })), !busy && (_jsx(Prompt, { session: session.current, input: input }))] }));
 }
-// ── main ───────────────────────────────────────────────────────────────────
+// ── Entry ──────────────────────────────────────────────────────────────────
 export async function main() {
-    console.log(`
-${paint("bold", "CSSgrab")} ${paint("dim", "v0.1.6")}
-${paint("dim", "Type 'help' to see commands. ctrl+c to exit.")}
-`);
-    const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout,
-        terminal: true,
-        historySize: 100,
-    });
-    const ask = () => {
-        rl.question(makePrompt(), async (line) => {
-            await dispatch(line);
-            ask();
-        });
-    };
-    rl.on("close", () => {
-        console.log(paint("dim", "\n  bye\n"));
-        process.exit(0);
-    });
-    ask();
+    render(_jsx(App, {}), { exitOnCtrlC: true });
 }

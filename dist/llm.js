@@ -26,7 +26,7 @@ export async function askStream(prompt, onToken) {
 }
 // ── Ollama ─────────────────────────────────────────────────────────────────
 async function askOllama(prompt) {
-    const model = process.env.OLLAMA_MODEL || "qwen2.5-coder";
+    const model = process.env.OLLAMA_MODEL || "llama3.2";
     const host = process.env.OLLAMA_HOST || "http://localhost:11434";
     const res = await fetch(`${host}/api/chat`, {
         method: "POST",
