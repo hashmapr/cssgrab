@@ -1,9 +1,10 @@
 import type { ExtractedElement, GenerateOptions, GenerateResult } from "./types.js";
-import { ask } from "./llm.js";
+import { ask, askStream } from "./llm.js";
 
 export async function generate(
   data: ExtractedElement,
   options: GenerateOptions,
+  onToken?: (token: string) => void,
 ): Promise<GenerateResult> {
   if (data.isCanvas) {
     return {
@@ -23,17 +24,19 @@ export async function generate(
   }
 
   const prompt = buildPrompt(data, options);
-  const raw = await ask(prompt);
-  const { code, explanation } = splitCodeAndExplanation(raw);
 
+  let raw: string;
+  if (onToken) {
+    raw = await askStream(prompt, onToken);
+  } else {
+    raw = await ask(prompt);
+  }
+
+  const { code, explanation } = splitCodeAndExplanation(raw);
   return { code, explanation, isCanvas: false };
 }
 
 function buildPrompt(data: ExtractedElement, options: GenerateOptions): string {
-  // Only pass CSS variables whose values actually appear in this element's
-  // computed styles — dumping all :root variables on a large site (Stripe
-  // has hundreds) drowns out the actual element data and causes weaker
-  // models to ignore it and hallucinate something generic instead.
   const usedVars = filterRelevantVariables(data.cssVariables, data.computedStyles);
 
   return `Translate the following REAL extracted browser data into working ${options.stack} code.
@@ -41,10 +44,12 @@ function buildPrompt(data: ExtractedElement, options: GenerateOptions): string {
 STRICT RULES:
 - Use ONLY the data below. Do not invent a different component (no generic "Card", no Lorem ipsum themes).
 - This is a "${data.tag}" element with class "${data.classList.join(" ")}" — your output must be that same kind of element with these same visual properties.
-- Output format is exactly two parts separated by the literal line ---EXPLANATION---
-  Part 1: a single fenced code block with the component.
-  Part 2: a 3-5 sentence plain-English explanation of the effect.
-- Do not skip the ---EXPLANATION--- marker.
+- You MUST output exactly two sections in this order, no exceptions:
+  1. A fenced code block containing the component (e.g. \`\`\`jsx ... \`\`\`)
+  2. The exact line: ---EXPLANATION---
+  3. A 3-5 sentence plain-English explanation of what the component does visually.
+- The ---EXPLANATION--- line MUST appear AFTER the code block, not before.
+- Do not output anything before the code block.
 
 ${options.context ? `Project context: ${options.context}\n` : ""}
 Element HTML:
@@ -88,9 +93,7 @@ function filterRelevantVariables(
 function splitCodeAndExplanation(raw: string): { code: string; explanation: string } {
   const marker = "---EXPLANATION---";
   const idx = raw.indexOf(marker);
-  if (idx === -1) {
-    return { code: raw.trim(), explanation: "" };
-  }
+  if (idx === -1) return { code: raw.trim(), explanation: "" };
   const codePart = raw.slice(0, idx).trim();
   const explanationPart = raw.slice(idx + marker.length).trim();
   const codeMatch = codePart.match(/```[\w+]*\n([\s\S]*?)```/);

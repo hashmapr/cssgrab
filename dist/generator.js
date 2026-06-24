@@ -1,5 +1,5 @@
-import { ask } from "./llm.js";
-export async function generate(data, options) {
+import { ask, askStream } from "./llm.js";
+export async function generate(data, options, onToken) {
     if (data.isCanvas) {
         return {
             code: "",
@@ -15,15 +15,17 @@ export async function generate(data, options) {
         };
     }
     const prompt = buildPrompt(data, options);
-    const raw = await ask(prompt);
+    let raw;
+    if (onToken) {
+        raw = await askStream(prompt, onToken);
+    }
+    else {
+        raw = await ask(prompt);
+    }
     const { code, explanation } = splitCodeAndExplanation(raw);
     return { code, explanation, isCanvas: false };
 }
 function buildPrompt(data, options) {
-    // Only pass CSS variables whose values actually appear in this element's
-    // computed styles — dumping all :root variables on a large site (Stripe
-    // has hundreds) drowns out the actual element data and causes weaker
-    // models to ignore it and hallucinate something generic instead.
     const usedVars = filterRelevantVariables(data.cssVariables, data.computedStyles);
     return `Translate the following REAL extracted browser data into working ${options.stack} code.
 
@@ -72,9 +74,8 @@ function filterRelevantVariables(cssVariables, computedStyles) {
 function splitCodeAndExplanation(raw) {
     const marker = "---EXPLANATION---";
     const idx = raw.indexOf(marker);
-    if (idx === -1) {
+    if (idx === -1)
         return { code: raw.trim(), explanation: "" };
-    }
     const codePart = raw.slice(0, idx).trim();
     const explanationPart = raw.slice(idx + marker.length).trim();
     const codeMatch = codePart.match(/```[\w+]*\n([\s\S]*?)```/);

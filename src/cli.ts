@@ -3,27 +3,15 @@
 import { extract, extractWithScroll } from "./extractor.js";
 import { generate } from "./generator.js";
 import type { Stack } from "./types.js";
+import { main as startRepl } from "./repl.js";
 
 async function main() {
   const [, , command, url, selector, ...rest] = process.argv;
 
-  if (!command || !url) {
-    console.log(`
-CSSgrab — grab any element's CSS/animation as code
-
-Commands:
-  grab <url> <selector> [--stack react+tailwind]
-    Extract styles from a specific element
-
-  scroll <url>
-    Scroll the full page and capture all animations that fire
-
-Examples:
-  npx tsx src/cli.ts grab https://stripe.com ".btn-primary" --stack react+tailwind
-  npx tsx src/cli.ts scroll https://framer.com
-`);
-    process.exit(0);
-  }
+  if (!command) {
+  await startRepl();
+  return;
+}
 
   // ── scroll command ──────────────────────────────────────────────────────
   if (command === "scroll") {
