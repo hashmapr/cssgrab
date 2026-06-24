@@ -6,17 +6,17 @@
     ".env.example"
   ],
   "name": "cssgrab",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Grab any website's CSS, animations, and design tokens as production-ready code in your stack.",
   "type": "module",
   "bin": {
     "cssgrab": "./dist/cli.js"
   },
- "scripts": {
-  "dev": "tsx src/cli.ts",
-  "build": "tsc",
-  "postbuild": "node scripts/add-shebang.mjs",
-  "typecheck": "tsc --noEmit"
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsc",
+    "postbuild": "node scripts/add-shebang.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "license": "MIT",
   "dependencies": {
