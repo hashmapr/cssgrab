@@ -18,7 +18,8 @@ type Phase =
   | { kind: "done"; code: string; explanation: string }
   | { kind: "error"; message: string }
   | { kind: "scroll-scanning"; url: string; elapsed: number }
-  | { kind: "scroll-done"; summary: ScrollSummary };
+  | { kind: "scroll-done"; summary: ScrollSummary }
+  | { kind: "watching"; url: string; elapsed: number };
 
 interface ScrollSummary {
   keyframes: number;
@@ -56,7 +57,7 @@ function Welcome() {
           <Text color="cyan">{"  ╚═══╝ ╚═══╝ ╚═══╝  "}</Text>
           <Text> </Text>
           <Text bold color="white">CSSgrab</Text>
-          <Text color="gray" dimColor>v0.1.6</Text>
+          <Text color="gray" dimColor>v0.1.7</Text>
           <Text> </Text>
           <Text color="gray" dimColor>Grab any element's CSS</Text>
           <Text color="gray" dimColor>and animations as code</Text>
@@ -82,8 +83,8 @@ function Welcome() {
           <Text color="gray">  <Text color="cyan">grab</Text> 3</Text>
           <Text color="gray" dimColor>  extract element by index</Text>
           <Text> </Text>
-          <Text color="gray">  <Text color="cyan">scroll</Text></Text>
-          <Text color="gray" dimColor>  capture scroll animations</Text>
+          <Text color="gray">  <Text color="cyan">watch</Text> stripe.com</Text>
+          <Text color="gray" dimColor>  click-to-pick in browser</Text>
         </Box>
       </Box>
       <Text color="gray" dimColor>Type <Text color="white">help</Text> for all commands · ctrl+c to exit</Text>
@@ -264,6 +265,15 @@ function Help() {
       {row("grab <selector>", "grab by CSS selector")}
       {row("grab <selector> <url>", "grab from specific URL")}
       <Text> </Text>
+      <Text color="yellow" bold>WATCH</Text>
+      {row("watch", "open browser, click to pick element")}
+      {row("watch <url>", "watch a specific URL")}
+      <Text> </Text>
+      <Text color="yellow" bold>GIF</Text>
+      {row("gif <n>", "render last-grabbed element as GIF")}
+      {row("gif <selector>", "render selector as GIF")}
+      {row("gif <selector> <url>", "render from specific URL")}
+      <Text> </Text>
       <Text color="yellow" bold>SCROLL</Text>
       {row("scroll", "scroll-scan active URL")}
       {row("scroll <url>", "scroll-scan specific URL")}
@@ -409,6 +419,112 @@ function App() {
         break;
       }
 
+      case "watch": {
+        const watchUrl = args.length ? normaliseUrl(args[0]) : session.current.url;
+        if (!watchUrl) { pushHistory(<Text key={Date.now()} color="red">  No URL set. Run: use &lt;url&gt; or watch &lt;url&gt;</Text>); break; }
+
+        pushHistory(<Text key={Date.now()} color="cyan">  Opening browser — click an element to select it</Text>);
+        startTimer();
+        setPhase({ kind: "watching", url: watchUrl, elapsed: 0 });
+
+        try {
+          const { watch } = await import("./watch.js");
+          const { selector: pickedSelector, url: resolvedUrl } = await watch(watchUrl);
+          session.current.url = resolvedUrl;
+          stopTimer();
+          setPhase({ kind: "idle" });
+          pushHistory(
+            <Text key={Date.now()} color="green">
+              {"  ✓ Selected: "}<Text color="magenta">{pickedSelector}</Text>
+            </Text>
+          );
+
+          // Extract
+          startTimer();
+          setPhase({ kind: "extracting", selector: pickedSelector, elapsed: 0 });
+          const data = await extract(resolvedUrl, pickedSelector);
+
+          // Register in lastScan so gif <n> works immediately
+          session.current.lastScan = [{
+            selector: pickedSelector,
+            tag: data.tag,
+            text: "",
+            hasTransition: false,
+            hasAnimation: data.webAnimations.length > 0,
+            role: "other",
+          }];
+
+          if (data.isCanvas) {
+            stopTimer();
+            setPhase({ kind: "idle" });
+            pushHistory(<Text key={Date.now()} color="yellow">  ⚠ Canvas element — no CSS to extract.</Text>);
+            break;
+          }
+
+          // Auto-render GIF if animations detected
+          const hasAnim =
+            data.webAnimations.length > 0 ||
+            data.keyframes.length > 0 ||
+            (data.computedStyles["animation-name"] ?? "none") !== "none" ||
+            (data.computedStyles["transition-duration"] ?? "0s") !== "0s";
+
+          if (hasAnim) {
+            stopTimer();
+            setPhase({ kind: "idle" });
+            pushHistory(<Text key={Date.now()} color="cyan">  🎞  Rendering GIF preview...</Text>);
+            const { renderGif } = await import("./gif.js");
+            await renderGif(data, {}).catch((err: Error) => {
+              pushHistory(<Text key={Date.now()} color="yellow">  ⚠ GIF skipped: {err.message}</Text>);
+            });
+          } else {
+            stopTimer();
+            setPhase({ kind: "idle" });
+          }
+
+          // Generate code
+          let streamedTokens = "";
+          startTimer();
+          setPhase({ kind: "generating", tag: data.tag, elapsed: 0, tokens: "" });
+          const result = await generate(data, { stack: session.current.stack }, (token: string) => {
+            streamedTokens += token;
+            setPhase({ kind: "generating", tag: data.tag, elapsed, tokens: streamedTokens });
+          });
+          stopTimer();
+          setPhase({ kind: "idle" });
+          pushHistory(<GrabResult key={Date.now()} code={result.code} explanation={result.explanation} />);
+        } catch (err) {
+          stopTimer();
+          setPhase({ kind: "idle" });
+          pushHistory(<Text key={Date.now()} color="red">  Watch failed: {(err as Error).message}</Text>);
+        }
+        break;
+      }
+
+      case "gif": {
+        if (!args.length) { pushHistory(<Text key={Date.now()} color="red">  Usage: gif &lt;n|selector&gt; [url]</Text>); break; }
+        if (args[1]) session.current.url = normaliseUrl(args[1]);
+        if (!session.current.url) { pushHistory(<Text key={Date.now()} color="red">  No URL set. Run: use &lt;url&gt;</Text>); break; }
+        const gifSelector = resolveSelector(args[0]);
+        if (!gifSelector) { pushHistory(<Text key={Date.now()} color="red">  No element #{args[0]} in last scan.</Text>); break; }
+
+        startTimer();
+        setPhase({ kind: "extracting", selector: gifSelector, elapsed: 0 });
+        try {
+          const data = await extract(session.current.url, gifSelector);
+          stopTimer();
+          setPhase({ kind: "idle" });
+          pushHistory(<Text key={Date.now()} color="cyan">  🎞  Rendering GIF preview...</Text>);
+          const { renderGif } = await import("./gif.js");
+          await renderGif(data, {});
+          pushHistory(<Text key={Date.now()} color="green">  ✓ GIF rendered</Text>);
+        } catch (err) {
+          stopTimer();
+          setPhase({ kind: "idle" });
+          pushHistory(<Text key={Date.now()} color="red">  GIF failed: {(err as Error).message}</Text>);
+        }
+        break;
+      }
+
       case "scroll": {
         if (args.length) session.current.url = normaliseUrl(args[0]);
         if (!session.current.url) { pushHistory(<Text key={Date.now()} color="red">  No URL set. Run: use &lt;url&gt;</Text>); break; }
@@ -521,6 +637,9 @@ function App() {
         {(item, i) => <Box key={i}>{item as React.ReactElement}</Box>}
       </Static>
 
+      {phase.kind === "watching" && (
+        <Thinking label={`Browser open — click an element on ${new URL(phase.url).hostname} ...`} elapsed={elapsed} />
+      )}
       {phase.kind === "scanning" && (
         <Thinking label={`Scanning ${new URL(phase.url).hostname} ...`} elapsed={elapsed} />
       )}
