@@ -9,8 +9,65 @@ async function main() {
         await startRepl();
         return;
     }
+    // ── deep-scan command ───────────────────────────────────────────────────
+    if (command === "deep-scan") {
+        if (!url) {
+            console.error("Usage: cssgrab deep-scan <url> [--max <n>] [--depth <n>] [--output <file.json>]");
+            process.exit(1);
+        }
+        const maxFlag = rest.indexOf("--max");
+        const depthFlag = rest.indexOf("--depth");
+        const outFlag = rest.indexOf("--output");
+        const maxPages = maxFlag !== -1 ? parseInt(rest[maxFlag + 1], 10) : 50;
+        const maxDepth = depthFlag !== -1 ? parseInt(rest[depthFlag + 1], 10) : 3;
+        const outputFile = outFlag !== -1 ? rest[outFlag + 1] : undefined;
+        const { deepScan } = await import("./deep-scan.js");
+        console.log(`\n🕷  Deep-scanning ${url}`);
+        console.log(`   max depth: ${maxDepth} · max pages: ${maxPages}${outputFile ? ` · output: ${outputFile}` : ""}\n`);
+        await deepScan(url, {
+            maxDepth,
+            maxPages,
+            outputFile,
+            onPageStart(pageUrl, depth, index) {
+                process.stdout.write(`\n[${index}] ${"  ".repeat(depth - 1)}${pageUrl}\n`);
+            },
+            onKeyframe(kf) {
+                process.stdout.write(`  ⟳ keyframe  ${kf.name}\n`);
+            },
+            onElement(el) {
+                const tag = el.triggeredByScroll ? " [scroll]" : "";
+                process.stdout.write(`  ◈ element   ${el.selector}${tag}\n`);
+            },
+            onGsap(call) {
+                process.stdout.write(`  ↯ gsap.${call.method}()\n`);
+            },
+            onMutation(m) {
+                process.stdout.write(`  ± mutation  <${m.tag}> +[${m.addedClasses.join(", ")}]\n`);
+            },
+            onPageDone(_pageUrl, stats) {
+                process.stdout.write(`  ✓ done  ${stats.keyframes} kf · ${stats.animated} els · ${(stats.durationMs / 1000).toFixed(1)}s\n`);
+            },
+            onDone(result) {
+                console.log(`\n${"─".repeat(60)}`);
+                console.log(`✅ Deep-scan complete`);
+                console.log(`   pages scanned    : ${result.pagesScanned}`);
+                console.log(`   keyframes        : ${result.keyframes.length} unique`);
+                console.log(`   animated els     : ${result.animatedElements.length}`);
+                console.log(`   gsap calls       : ${result.gsapCalls.length}`);
+                console.log(`   scroll-triggered : ${result.animatedElements.filter(e => e.triggeredByScroll).length}`);
+                console.log(`   total time       : ${(result.totalDurationMs / 1000).toFixed(1)}s`);
+                if (outputFile)
+                    console.log(`   saved to         : ${outputFile}`);
+            },
+        });
+        return;
+    }
     // ── scroll command ──────────────────────────────────────────────────────
     if (command === "scroll") {
+        if (!url) {
+            console.error("Usage: cssgrab scroll <url>");
+            process.exit(1);
+        }
         console.log(`\n🔍 Scrolling ${url} and capturing animations...`);
         const data = await extractWithScroll(url);
         console.log(`\n✅ Scroll-scan complete`);
@@ -48,7 +105,7 @@ async function main() {
     }
     // ── grab command ──────────────────────────────────────────────────────
     if (command === "grab") {
-        if (!selector) {
+        if (!url || !selector) {
             console.error("Usage: cssgrab grab <url> <selector> [--stack react+tailwind]");
             process.exit(1);
         }
@@ -77,7 +134,12 @@ async function main() {
         console.log(result.explanation);
         return;
     }
-    console.error(`Unknown command: ${command}. Use 'grab' or 'scroll'.`);
+    // ── mcp command ───────────────────────────────────────────────────────
+    if (command === "mcp") {
+        await import("./mcp.js");
+        return;
+    }
+    console.error(`Unknown command: ${command}. Use 'grab', 'scroll', 'deep-scan', 'repl', or 'mcp'.`);
     process.exit(1);
 }
 main().catch((err) => {

@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { extract, extractWithScroll } from "./extractor.js";
 import { scan } from "./scanner.js";
+import { deepScan } from "./deep-scan.js";
 const server = new McpServer({
     name: "cssgrab",
     version: "0.1.0",
@@ -151,6 +152,70 @@ server.registerTool("scroll-scan", {
         const message = err instanceof Error ? err.message : String(err);
         return {
             content: [{ type: "text", text: `CSSgrab scroll-scan failed: ${message}` }],
+            isError: true,
+        };
+    }
+});
+server.registerTool("deep-scan", {
+    title: "Deep-scan a full website for all animations",
+    description: "Crawls an entire website (same domain, BFS) and runs scroll-scan on every page, " +
+        "returning a deduplicated animation library across the whole site. Use this when " +
+        "the user wants to understand all animations used across a site, not just the " +
+        "landing page. Streams results as pages are discovered. " +
+        "Options: maxDepth (default 3), maxPages (default 50), outputFile (save JSON). " +
+        "Warning: large sites may take several minutes. Recommend maxPages 10-20 for quick scans.",
+    inputSchema: {
+        url: z.string().describe("Root URL to start crawling from, e.g. https://linear.app"),
+        maxDepth: z.number().optional().describe("Max link depth to follow (default 3)"),
+        maxPages: z.number().optional().describe("Max pages to scan (default 50)"),
+        outputFile: z.string().optional().describe("Path to save JSON output, e.g. ./animations.json"),
+    },
+}, async ({ url, maxDepth, maxPages, outputFile }) => {
+    try {
+        const lines = [];
+        const result = await deepScan(url, {
+            maxDepth: maxDepth ?? 3,
+            maxPages: maxPages ?? 50,
+            outputFile,
+            onPageStart(pageUrl, depth, index) {
+                lines.push(`[${index}] ${"  ".repeat(depth - 1)}${pageUrl}`);
+            },
+            onKeyframe(kf) {
+                lines.push(`  ⟳ ${kf.name}`);
+            },
+            onElement(el) {
+                lines.push(`  ◈ ${el.selector}${el.triggeredByScroll ? " [scroll]" : ""}`);
+            },
+            onPageDone(pageUrl, stats) {
+                lines.push(`  ✓ ${stats.keyframes} keyframes · ${stats.animated} elements · ${(stats.durationMs / 1000).toFixed(1)}s`);
+            },
+        });
+        const truncate = (s, max) => s.length > max ? s.slice(0, max) + "…" : s;
+        const summary = {
+            rootUrl: result.rootUrl,
+            pagesScanned: result.pagesScanned,
+            totalDurationMs: result.totalDurationMs,
+            uniqueKeyframes: result.keyframes.length,
+            animatedElements: result.animatedElements.length,
+            scrollTriggeredElements: result.animatedElements.filter(e => e.triggeredByScroll).length,
+            gsapCalls: result.gsapCalls.length,
+            keyframes: result.keyframes.slice(0, 15).map(k => ({
+                name: k.name,
+                cssText: truncate(k.cssText, 300),
+                foundOn: k.foundOn,
+            })),
+            topAnimatedElements: result.animatedElements.slice(0, 20),
+            streamLog: lines.slice(0, 50),
+            outputFile: outputFile ?? null,
+        };
+        return {
+            content: [{ type: "text", text: JSON.stringify(summary, null, 2) }],
+        };
+    }
+    catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return {
+            content: [{ type: "text", text: `CSSgrab deep-scan failed: ${message}` }],
             isError: true,
         };
     }
