@@ -121,7 +121,34 @@ server.registerTool(
     }
   },
 );
-
+server.registerTool(
+  "find",
+  {
+    title: "Find an element by description",
+    description:
+      "Scans a page and finds the best matching element for a natural language description. " +
+      "Use this when the user says things like 'the purple signup button' or 'the pricing card' " +
+      "instead of providing a CSS selector. Returns the exact selector to pass to grab.",
+    inputSchema: {
+      url: z.string().describe("Full URL of the page"),
+      description: z.string().describe("Natural language description, e.g. 'purple request invite button'"),
+    },
+  },
+  async ({ url, description }) => {
+    try {
+      const candidates = await scan(url);
+      const { matchElement } = await import("./matcher.js");
+      const selector = await matchElement(description, candidates);
+      if (!selector) {
+        return { content: [{ type: "text" as const, text: `No element found matching: "${description}"` }] };
+      }
+      return { content: [{ type: "text" as const, text: selector }] };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { content: [{ type: "text" as const, text: `find failed: ${message}` }], isError: true };
+    }
+  },
+);
 server.registerTool(
   "scroll-scan",
   {

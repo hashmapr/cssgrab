@@ -339,9 +339,9 @@ function App() {
   }
 
   async function runCommand(line: string) {
-    const parts = line.trim().split(/\s+/);
-    const cmd = parts[0].toLowerCase();
-    const args = parts.slice(1);
+    const parts = line.trim().match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? [];
+    const cmd = parts[0]?.toLowerCase() ?? "";
+    const args = parts.slice(1).map(a => a.replace(/^["']|["']$/g, ""));
 
     setCmdHistory(h => [line, ...h]);
     setHistoryIndex(-1);
@@ -374,11 +374,52 @@ function App() {
       }
 
       case "grab": {
-        if (!args.length) { pushHistory(<Text key={Date.now()} color="red">  Usage: grab &lt;n|selector&gt; [url]</Text>); break; }
+        if (!args.length) { pushHistory(<Text key={Date.now()} color="red">  Usage: grab &lt;n|selector|description&gt; [url]</Text>); break; }
         if (args[1]) session.current.url = normaliseUrl(args[1]);
         if (!session.current.url) { pushHistory(<Text key={Date.now()} color="red">  No URL set. Run: use &lt;url&gt;</Text>); break; }
-        const selector = resolveSelector(args[0]);
-        if (!selector) { pushHistory(<Text key={Date.now()} color="red">  No element #{args[0]} in last scan.</Text>); break; }
+
+        // Detect natural language vs index vs CSS selector
+        const rawArg = args[0];
+        const isIndex = !isNaN(parseInt(rawArg, 10));
+        const isCSSSelector = /[.#\[\]>:()]/.test(rawArg);
+        const isNaturalLanguage = !isIndex && !isCSSSelector;
+
+        let selector: string | null = null;
+
+        if (isIndex) {
+          selector = resolveSelector(rawArg);
+          if (!selector) {
+            pushHistory(<Text key={Date.now()} color="red">  No element #{rawArg} in last scan.</Text>);
+            break;
+          }
+        } else if (isCSSSelector) {
+          selector = rawArg;
+        } else if (isNaturalLanguage) {
+          startTimer();
+          setPhase({ kind: "scanning", url: session.current.url, elapsed: 0 });
+          pushHistory(<Text key={Date.now()} color="cyan">  🔍 Scanning for "{rawArg}"...</Text>);
+          try {
+            const { scan } = await import("./scanner.js");
+            const { matchElement } = await import("./matcher.js");
+            const candidates = await scan(session.current.url);
+            session.current.lastScan = candidates;
+            stopTimer();
+            setPhase({ kind: "idle" });
+            selector = await matchElement(rawArg, candidates);
+            if (!selector) {
+              pushHistory(<Text key={Date.now()} color="red">  No element found matching "{rawArg}"</Text>);
+              break;
+            }
+            pushHistory(<Text key={Date.now()} color="green">  ✓ Matched: <Text color="magenta">{selector}</Text></Text>);
+          } catch (err) {
+            stopTimer();
+            setPhase({ kind: "idle" });
+            pushHistory(<Text key={Date.now()} color="red">  Scan failed: {(err as Error).message}</Text>);
+            break;
+          }
+        }
+
+        if (!selector) break;
 
         startTimer();
         setPhase({ kind: "extracting", selector, elapsed: 0 });

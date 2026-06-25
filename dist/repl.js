@@ -102,9 +102,9 @@ function App() {
         return arg;
     }
     async function runCommand(line) {
-        const parts = line.trim().split(/\s+/);
-        const cmd = parts[0].toLowerCase();
-        const args = parts.slice(1);
+        const parts = line.trim().match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? [];
+        const cmd = parts[0]?.toLowerCase() ?? "";
+        const args = parts.slice(1).map(a => a.replace(/^["']|["']$/g, ""));
         setCmdHistory(h => [line, ...h]);
         setHistoryIndex(-1);
         switch (cmd) {
@@ -142,7 +142,7 @@ function App() {
             }
             case "grab": {
                 if (!args.length) {
-                    pushHistory(_jsx(Text, { color: "red", children: "  Usage: grab <n|selector> [url]" }, Date.now()));
+                    pushHistory(_jsx(Text, { color: "red", children: "  Usage: grab <n|selector|description> [url]" }, Date.now()));
                     break;
                 }
                 if (args[1])
@@ -151,11 +151,49 @@ function App() {
                     pushHistory(_jsx(Text, { color: "red", children: "  No URL set. Run: use <url>" }, Date.now()));
                     break;
                 }
-                const selector = resolveSelector(args[0]);
-                if (!selector) {
-                    pushHistory(_jsxs(Text, { color: "red", children: ["  No element #", args[0], " in last scan."] }, Date.now()));
-                    break;
+                // Detect natural language vs index vs CSS selector
+                const rawArg = args[0];
+                const isIndex = !isNaN(parseInt(rawArg, 10));
+                const isCSSSelector = /[.#\[\]>:()]/.test(rawArg);
+                const isNaturalLanguage = !isIndex && !isCSSSelector;
+                let selector = null;
+                if (isIndex) {
+                    selector = resolveSelector(rawArg);
+                    if (!selector) {
+                        pushHistory(_jsxs(Text, { color: "red", children: ["  No element #", rawArg, " in last scan."] }, Date.now()));
+                        break;
+                    }
                 }
+                else if (isCSSSelector) {
+                    selector = rawArg;
+                }
+                else if (isNaturalLanguage) {
+                    startTimer();
+                    setPhase({ kind: "scanning", url: session.current.url, elapsed: 0 });
+                    pushHistory(_jsxs(Text, { color: "cyan", children: ["  \uD83D\uDD0D Scanning for \"", rawArg, "\"..."] }, Date.now()));
+                    try {
+                        const { scan } = await import("./scanner.js");
+                        const { matchElement } = await import("./matcher.js");
+                        const candidates = await scan(session.current.url);
+                        session.current.lastScan = candidates;
+                        stopTimer();
+                        setPhase({ kind: "idle" });
+                        selector = await matchElement(rawArg, candidates);
+                        if (!selector) {
+                            pushHistory(_jsxs(Text, { color: "red", children: ["  No element found matching \"", rawArg, "\""] }, Date.now()));
+                            break;
+                        }
+                        pushHistory(_jsxs(Text, { color: "green", children: ["  \u2713 Matched: ", _jsx(Text, { color: "magenta", children: selector })] }, Date.now()));
+                    }
+                    catch (err) {
+                        stopTimer();
+                        setPhase({ kind: "idle" });
+                        pushHistory(_jsxs(Text, { color: "red", children: ["  Scan failed: ", err.message] }, Date.now()));
+                        break;
+                    }
+                }
+                if (!selector)
+                    break;
                 startTimer();
                 setPhase({ kind: "extracting", selector, elapsed: 0 });
                 let data;
