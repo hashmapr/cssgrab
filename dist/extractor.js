@@ -168,18 +168,18 @@ export async function extractWithScroll(url) {
     let browser;
     const watchdog = setTimeout(() => {
         browser?.close().catch(() => { });
-    }, 60000); // longer timeout for scroll capture
+    }, 90000);
     try {
         browser = await chromium.launch({ headless: true });
         const context = await browser.newContext({ userAgent: USER_AGENT });
         const page = await context.newPage();
         await page.route("**/*", blockRoute);
-        // Set up all interceptors before page load
         await page.addInitScript(() => {
             window.__gsap_calls = [];
             window.__animated_elements = new Map();
             window.__mutation_log = [];
-            // Patch GSAP
+            window.__is_scrolling = false;
+            // ── GSAP patch ─────────────────────────────────────────────────────
             const patchGsap = () => {
                 const g = window.gsap;
                 if (!g || g.__cssgrabPatched)
@@ -201,7 +201,7 @@ export async function extractWithScroll(url) {
             patchGsap();
             const gsapInterval = setInterval(patchGsap, 50);
             setTimeout(() => clearInterval(gsapInterval), 5000);
-            // Intercept Web Animations API
+            // ── Web Animations API intercept ───────────────────────────────────
             const origAnimate = Element.prototype.animate;
             Element.prototype.animate = function (keyframes, options) {
                 try {
@@ -220,11 +220,11 @@ export async function extractWithScroll(url) {
                 catch { }
                 return origAnimate.call(this, keyframes, options);
             };
-            // MutationObserver — watch for class changes (scroll-triggered reveals)
+            // ── MutationObserver — class AND style changes ─────────────────────
             const mutationObserver = new MutationObserver((mutations) => {
                 for (const mutation of mutations) {
+                    const el = mutation.target;
                     if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-                        const el = mutation.target;
                         const oldClasses = new Set((mutation.oldValue ?? '').split(' ').filter(Boolean));
                         const newClasses = new Set(Array.from(el.classList));
                         const added = [...newClasses].filter(c => !oldClasses.has(c));
@@ -239,35 +239,56 @@ export async function extractWithScroll(url) {
                             });
                         }
                     }
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+                        const oldStyle = mutation.oldValue ?? '';
+                        const newStyle = el.style?.cssText ?? '';
+                        if (newStyle !== oldStyle && window.__is_scrolling) {
+                            // Only care about transform/opacity/filter — skip layout-only changes
+                            const animProps = ['transform', 'opacity', 'translate', 'scale', 'rotate', 'clip-path', 'filter', 'will-change'];
+                            const isAnimChange = animProps.some(p => newStyle.includes(p) || oldStyle.includes(p));
+                            if (isAnimChange) {
+                                window.__mutation_log.push({
+                                    tag: el.tagName.toLowerCase(),
+                                    classList: Array.from(el.classList),
+                                    addedClasses: [],
+                                    removedClasses: [],
+                                    isScrolling: true,
+                                    styleChange: { from: oldStyle, to: newStyle },
+                                });
+                            }
+                        }
+                    }
                 }
             });
             mutationObserver.observe(document.body, {
                 subtree: true,
                 attributes: true,
                 attributeOldValue: true,
-                attributeFilter: ['class'],
+                attributeFilter: ['class', 'style'],
             });
         });
         await page.goto(url, { waitUntil: "domcontentloaded", timeout: PAGE_LOAD_TIMEOUT_MS });
-        await page.waitForTimeout(500);
-        // Slowly scroll the entire page
+        await page.waitForTimeout(600);
+        // Slow scroll — pause long enough for IntersectionObserver to fire
+        // and for Framer Motion / GSAP to respond
         await page.evaluate(async () => {
             window.__is_scrolling = true;
             const totalHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-            const step = 80;
-            const delay = 40; // ms between steps — slow enough to trigger IntersectionObserver
+            const step = 40; // smaller steps
+            const delay = 80; // longer pause per step — gives IO time to fire
             for (let pos = 0; pos <= totalHeight; pos += step) {
                 window.scrollTo({ top: pos, behavior: 'instant' });
                 await new Promise(r => setTimeout(r, delay));
             }
+            // Pause at bottom — let any final animations trigger
+            await new Promise(r => setTimeout(r, 500));
             // Scroll back to top
             window.scrollTo({ top: 0, behavior: 'instant' });
-            await new Promise(r => setTimeout(r, 200));
+            await new Promise(r => setTimeout(r, 300));
             window.__is_scrolling = false;
         });
-        // Wait for any post-scroll animations to settle
-        await page.waitForTimeout(400);
-        // Collect all keyframes from stylesheets
+        await page.waitForTimeout(500);
+        // Collect keyframes from stylesheets
         const keyframes = await page.evaluate(() => {
             const result = [];
             for (const sheet of Array.from(document.styleSheets)) {
@@ -286,10 +307,29 @@ export async function extractWithScroll(url) {
             }
             return result;
         });
-        // Collect animated elements
+        // Collect scroll-driven animation elements (CSS animation-timeline)
+        const scrollDrivenElements = await page.evaluate(() => {
+            const results = [];
+            const all = document.querySelectorAll('*');
+            for (const el of Array.from(all)) {
+                const computed = window.getComputedStyle(el);
+                const timeline = computed.getPropertyValue('animation-timeline');
+                if (timeline && timeline !== 'none' && timeline !== 'auto') {
+                    const tag = el.tagName.toLowerCase();
+                    const classes = Array.from(el.classList).slice(0, 3).join('.');
+                    results.push({
+                        selector: el.id ? `#${el.id}` : tag + (classes ? '.' + classes : ''),
+                        tag,
+                        animationTimeline: timeline,
+                    });
+                }
+            }
+            return results.slice(0, 30);
+        });
+        // Collect Web Animations API animated elements
         const animatedElements = await page.evaluate(() => {
             const map = window.__animated_elements;
-            return Array.from(map.values()).map(entry => ({
+            return Array.from(map.values()).map((entry) => ({
                 selector: entry.tag + (entry.classList.length ? '.' + entry.classList.join('.') : ''),
                 tag: entry.tag,
                 classList: entry.classList,
@@ -297,7 +337,7 @@ export async function extractWithScroll(url) {
                 triggeredByScroll: entry.triggeredByScroll,
             }));
         });
-        // Collect all currently-animated elements via getAnimations()
+        // Collect live animations
         const liveAnimations = await page.evaluate(() => {
             return document.getAnimations().map((a) => {
                 const el = a.effect?.target;
@@ -320,11 +360,34 @@ export async function extractWithScroll(url) {
         });
         const gsapCalls = await page.evaluate(() => window.__gsap_calls ?? []);
         const mutationLog = await page.evaluate(() => window.__mutation_log ?? []);
-        // Merge animated elements (deduplicate by selector)
+        // Merge animated elements — deduplicate by selector
         const allAnimated = [...animatedElements];
         for (const live of liveAnimations) {
             if (!allAnimated.find(a => a.selector === live.selector)) {
                 allAnimated.push(live);
+            }
+        }
+        // Tag elements as scroll-triggered based on class/style mutations during scroll
+        const scrollMutatedClasses = new Set(mutationLog
+            .filter((m) => m.isScrolling && m.addedClasses?.length > 0)
+            .flatMap((m) => m.addedClasses));
+        for (const el of allAnimated) {
+            if (!el.triggeredByScroll && el.classList.some((c) => scrollMutatedClasses.has(c))) {
+                el.triggeredByScroll = true;
+            }
+        }
+        // Add style-mutation elements (GSAP/Framer Motion) as scroll-triggered animated elements
+        const styleMutations = mutationLog.filter((m) => m.isScrolling && m.styleChange);
+        for (const m of styleMutations) {
+            const selector = m.tag + (m.classList.length ? '.' + m.classList.slice(0, 3).join('.') : '');
+            if (!allAnimated.find(a => a.selector === selector)) {
+                allAnimated.push({
+                    selector,
+                    tag: m.tag,
+                    classList: m.classList,
+                    animations: [{ styleChange: m.styleChange }],
+                    triggeredByScroll: true,
+                });
             }
         }
         return {
@@ -333,6 +396,7 @@ export async function extractWithScroll(url) {
             animatedElements: allAnimated,
             gsapCalls,
             mutationLog,
+            scrollDrivenElements,
         };
     }
     finally {
