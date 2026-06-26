@@ -11,6 +11,7 @@ export interface ExtractedElement {
   gsapCalls: GsapCall[];
   isCanvas: boolean;
   cssVariables: Record<string, string>;
+  observedAnimations?: string[];
 }
 
 export interface KeyframeBlock {

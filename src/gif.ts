@@ -5,35 +5,26 @@ const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
 export interface GifOptions {
-  /** Frames per second (default 24) */
   fps?: number;
-  /** Total capture duration in ms (default: animation duration × 2, min 1000ms) */
   durationMs?: number;
-  /** Output file path — if omitted, only inline preview is shown */
   outputPath?: string;
-  /** Scale factor for the screenshot (default 2 for retina) */
   scale?: number;
 }
 
-/**
- * Render the extracted element's animation as a GIF.
- * Captures frames via Playwright screenshots, encodes with gifenc (pure JS, no native deps).
- * Outputs inline to terminal via iTerm2 / Kitty / Sixel protocol if supported.
- */
 export async function renderGif(
   data: ExtractedElement,
   opts: GifOptions = {},
 ): Promise<string | null> {
-  const fps = opts.fps ?? 24;
-  const scale = opts.scale ?? 2;
+  const fps = opts.fps ?? 20;
+  const scale = opts.scale ?? 1; // 1x — 2x was causing 33MB GIFs
 
-  // Determine capture duration from animation data
   let animDurationMs = 1000;
   if (data.webAnimations.length > 0) {
     const d = data.webAnimations[0].duration;
     if (typeof d === "number" && d > 0) animDurationMs = d;
   }
-  const durationMs = opts.durationMs ?? Math.min(Math.max(animDurationMs * 2, 1000), 5000);
+  // Cap at 2s max — marquee animations are infinite, don't capture forever
+  const durationMs = opts.durationMs ?? Math.min(Math.max(animDurationMs * 2, 1000), 2000);
   const frameCount = Math.round((durationMs / 1000) * fps);
   const frameDelay = Math.round(1000 / fps);
 
@@ -53,32 +44,22 @@ export async function renderGif(
     await page.goto(data.url, { waitUntil: "domcontentloaded", timeout: 15000 });
     await page.waitForTimeout(300);
 
-    // Scroll element into view
     await page.evaluate((sel) => {
       document.querySelector(sel)?.scrollIntoView({ block: "center" });
     }, data.selector);
     await page.waitForTimeout(100);
 
-    // Hover to trigger hover animations
     await page.hover(data.selector).catch(() => {});
 
-    // Get bounding box for cropped screenshots
     const box = await page.locator(data.selector).boundingBox().catch(() => null);
-
-    const pad = 16; // px padding around element
+    const pad = 12;
 
     for (let i = 0; i < frameCount; i++) {
-      const t = i / (frameCount - 1); // 0..1
-
-      // For CSS transitions/animations: advance time via requestAnimationFrame trick
-      await page.evaluate((_t) => {
-        // Force any CSS animation to a specific playback position
+      await page.evaluate(() => {
         document.getAnimations().forEach(a => {
-          try {
-            if (a.playState !== "running") a.play();
-          } catch { /* some animations don't allow seeking */ }
+          try { if (a.playState !== "running") a.play(); } catch { }
         });
-      }, t);
+      });
 
       let screenshot: Buffer;
       if (box) {
@@ -86,8 +67,8 @@ export async function renderGif(
           clip: {
             x: Math.max(0, box.x - pad),
             y: Math.max(0, box.y - pad),
-            width: box.width + pad * 2,
-            height: box.height + pad * 2,
+            width: Math.min(box.width + pad * 2, 800), // cap width at 800px
+            height: Math.min(box.height + pad * 2, 600), // cap height at 600px
           },
           type: "png",
         }) as unknown as Buffer;
@@ -96,10 +77,7 @@ export async function renderGif(
       }
 
       frames.push(screenshot);
-
-      if (i < frameCount - 1) {
-        await page.waitForTimeout(frameDelay);
-      }
+      if (i < frameCount - 1) await page.waitForTimeout(frameDelay);
     }
   } finally {
     await browser?.close().catch(() => {});
@@ -109,55 +87,46 @@ export async function renderGif(
 
   console.log(`  ✓ ${frames.length} frames captured`);
 
-  // Encode GIF using gifenc (pure JS)
   let gifBuffer: Buffer | null = null;
   try {
-    gifBuffer = await encodeGif(frames, frameDelay, scale);
-    console.log(`  ✓ GIF encoded (${(gifBuffer.length / 1024).toFixed(1)} KB)`);
+    gifBuffer = await encodeGif(frames, frameDelay);
+    const kb = (gifBuffer.length / 1024).toFixed(1);
+    console.log(`  ✓ GIF encoded (${kb} KB)`);
+
+    // Warn if still large
+    if (gifBuffer.length > 5 * 1024 * 1024) {
+      console.warn(`  ⚠ GIF is large (${(gifBuffer.length / 1024 / 1024).toFixed(1)} MB) — use --gif <path> to save`);
+    }
   } catch (err) {
     console.warn(`  ⚠ GIF encoding failed: ${(err as Error).message}`);
-    console.warn(`    Install gifenc: npm i gifenc`);
   }
 
-  // Save to file if requested
   if (gifBuffer && opts.outputPath) {
     const { writeFileSync } = await import("fs");
     writeFileSync(opts.outputPath, gifBuffer);
     console.log(`  ✓ Saved → ${opts.outputPath}`);
   }
 
-  // Inline terminal preview
   if (gifBuffer) {
     displayInlineGif(gifBuffer);
   } else {
-    // Fallback: show first frame as PNG inline
     displayInlinePng(frames[0]);
   }
 
   return opts.outputPath ?? null;
 }
 
-/**
- * Encode PNG frame buffers to an animated GIF.
- * Uses gifenc if available, otherwise throws so caller can fallback.
- */
-async function encodeGif(frames: Buffer[], frameDelayMs: number, scale: number): Promise<Buffer> {
-  // Dynamic import — gifenc is optional
+async function encodeGif(frames: Buffer[], frameDelayMs: number): Promise<Buffer> {
   let gifenc: any;
   try {
-    // @ts-ignore
     gifenc = await import("gifenc");
   } catch {
     throw new Error("gifenc not installed");
   }
 
-  const mod = gifenc.default ?? gifenc;
-  const GIFEncoder = mod.GIFEncoder;
-  const quantize = mod.quantize;
-  const applyPalette = mod.applyPalette;
-
-  // Decode first frame to get dimensions
+  const { GIFEncoder, quantize, applyPalette } = gifenc.default ?? gifenc;
   const { createCanvas, loadImage } = await importCanvas();
+
   const firstImg = await loadImage(frames[0]);
   const w = firstImg.width;
   const h = firstImg.height;
@@ -165,17 +134,13 @@ async function encodeGif(frames: Buffer[], frameDelayMs: number, scale: number):
   const encoder = GIFEncoder();
   const canvas = createCanvas(w, h);
   const ctx = canvas.getContext("2d");
-
-  // Centiseconds delay (GIF spec)
   const delayCs = Math.round(frameDelayMs / 10);
 
   for (const frameBuf of frames) {
     const img = await loadImage(frameBuf);
     ctx.clearRect(0, 0, w, h);
     ctx.drawImage(img, 0, 0);
-    const imageData = ctx.getImageData(0, 0, w, h);
-    const { data } = imageData;
-
+    const { data } = ctx.getImageData(0, 0, w, h);
     const palette = quantize(data, 256);
     const indexed = applyPalette(data, palette);
     encoder.writeFrame(indexed, w, h, { palette, delay: delayCs });
@@ -185,53 +150,38 @@ async function encodeGif(frames: Buffer[], frameDelayMs: number, scale: number):
   return Buffer.from(encoder.bytes());
 }
 
-/**
- * Try to import canvas — supports both 'canvas' and '@napi-rs/canvas'.
- */
 async function importCanvas(): Promise<{ createCanvas: any; loadImage: any }> {
   try {
-    // @ts-ignore
     const mod = await import("canvas");
     return { createCanvas: mod.createCanvas, loadImage: mod.loadImage };
-  } catch { /* try next */ }
+  } catch { }
   try {
-    // @ts-ignore
     const mod = await import("@napi-rs/canvas");
     return { createCanvas: (mod as any).createCanvas, loadImage: (mod as any).loadImage };
-  } catch { /* try next */ }
+  } catch { }
   throw new Error("No canvas implementation found. Install 'canvas' or '@napi-rs/canvas'.");
 }
 
-/**
- * Display a GIF inline using the best available terminal protocol.
- */
 function displayInlineGif(gifBuffer: Buffer): void {
+  // Skip inline display if over 5MB — too large for terminal
+  if (gifBuffer.length > 5 * 1024 * 1024) {
+    console.log(`  ℹ GIF too large for inline display — save with --gif <path>`);
+    return;
+  }
   const protocol = detectTerminalProtocol();
   switch (protocol) {
-    case "iterm2":
-      displayIterm2(gifBuffer, "animation.gif");
-      break;
-    case "kitty":
-      displayKitty(gifBuffer);
-      break;
-    case "sixel":
-      console.log("  ℹ Sixel protocol detected but GIF preview requires sixel encoder — save to file with --gif <path>");
-      break;
+    case "iterm2": displayIterm2(gifBuffer, "animation.gif"); break;
+    case "kitty": displayKitty(gifBuffer); break;
     default:
-      console.log("  ℹ Your terminal doesn't support inline images.");
-      console.log("    Use --gif <path> to save the GIF file, or use iTerm2/Kitty for inline preview.");
+      console.log("  ℹ Your terminal doesn't support inline images. Use --gif <path> to save.");
   }
 }
 
 function displayInlinePng(pngBuffer: Buffer): void {
   const protocol = detectTerminalProtocol();
-  if (protocol === "iterm2") {
-    displayIterm2(pngBuffer, "preview.png");
-  } else if (protocol === "kitty") {
-    displayKitty(pngBuffer);
-  } else {
-    console.log("  ℹ First frame captured but terminal doesn't support inline images.");
-  }
+  if (protocol === "iterm2") displayIterm2(pngBuffer, "preview.png");
+  else if (protocol === "kitty") displayKitty(pngBuffer);
+  else console.log("  ℹ First frame captured but terminal doesn't support inline images.");
 }
 
 type TerminalProtocol = "iterm2" | "kitty" | "sixel" | "none";
@@ -240,17 +190,11 @@ function detectTerminalProtocol(): TerminalProtocol {
   const term = process.env.TERM_PROGRAM ?? "";
   const termEnv = process.env.TERM ?? "";
   const kittyWindow = process.env.KITTY_WINDOW_ID;
-
   if (term === "iTerm.app" || term.toLowerCase().includes("iterm")) return "iterm2";
   if (kittyWindow !== undefined || termEnv === "xterm-kitty") return "kitty";
-  if (termEnv.includes("sixel") || process.env.COLORTERM === "truecolor") return "sixel";
   return "none";
 }
 
-/**
- * iTerm2 inline image protocol.
- * https://iterm2.com/documentation-images.html
- */
 function displayIterm2(buffer: Buffer, name: string): void {
   const b64 = buffer.toString("base64");
   const args = [
@@ -261,25 +205,17 @@ function displayIterm2(buffer: Buffer, name: string): void {
     `height=auto`,
     `preserveAspectRatio=1`,
   ].join(";");
-
   process.stdout.write(`\n\x1b]1337;File=${args}:${b64}\x07\n`);
 }
 
-/**
- * Kitty graphics protocol (chunked base64 transfer).
- * https://sw.kovidgoyal.net/kitty/graphics-protocol/
- */
 function displayKitty(buffer: Buffer): void {
   const b64 = buffer.toString("base64");
   const CHUNK = 4096;
   let first = true;
-
   for (let i = 0; i < b64.length; i += CHUNK) {
     const chunk = b64.slice(i, i + CHUNK);
     const more = i + CHUNK < b64.length ? 1 : 0;
-
     if (first) {
-      // a=T: transmit and display, f=100: PNG/GIF format auto-detect, m=more
       process.stdout.write(`\x1b_Ga=T,f=100,m=${more};${chunk}\x1b\\`);
       first = false;
     } else {

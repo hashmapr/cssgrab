@@ -2,17 +2,49 @@
 <html>
 <head>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes scrollLeft {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+    .marquee-track {
+      display: flex;
+      width: max-content;
+      animation: scrollLeft 10s linear infinite;
+    }
+    .marquee-track:hover {
+      animation-play-state: paused;
+    }
+  </style>
 </head>
-<body class="p-8">
-  
-    <a href="/in/contact/sales"
-    class="flex items-center gap-2 bg-[rgb(65,51,203)] text-white font-normal text-base leading-none py-4 px-6 rounded-md transition-all duration-300 hover:bg-[rgb(83,58,253)]"
-  >
-    Request an invite
-    <svg class="w-2.5 h-2.5 fill-none stroke-current" viewBox="0 0 10 10" stroke-width="1.5">
-      <path d="M0.5 5.5h7"></path>
-      <path d="M1.5 1.5l4 4-4 4"></path>
-    </svg>
-  </a>
+<body class="bg-[#111] min-h-screen flex items-center justify-center py-16">
+
+  <div class="overflow-hidden w-full">
+    <div class="marquee-track gap-4">
+      <!-- original set -->
+      <div class="flex gap-4">
+        <div class="w-48 h-28 rounded-2xl bg-[#1c1c1c] border border-white/5 flex-shrink-0"></div>
+        <div class="w-48 h-28 rounded-2xl bg-[#1c1c1c] border border-white/5 flex-shrink-0"></div>
+        <div class="w-48 h-28 rounded-2xl bg-[#1c1c1c] border border-white/5 flex-shrink-0"></div>
+        <div class="w-48 h-28 rounded-2xl bg-[#1c1c1c] border border-white/5 flex-shrink-0"></div>
+        <div class="w-48 h-28 rounded-2xl bg-[#1c1c1c] border border-white/5 flex-shrink-0"></div>
+        <div class="w-48 h-28 rounded-2xl bg-[#1c1c1c] border border-white/5 flex-shrink-0"></div>
+        <div class="w-48 h-28 rounded-2xl bg-[#1c1c1c] border border-white/5 flex-shrink-0"></div>
+        <div class="w-48 h-28 rounded-2xl bg-[#1c1c1c] border border-white/5 flex-shrink-0"></div>
+      </div>
+      <!-- duplicate set for seamless loop -->
+      <div class="flex gap-4">
+        <div class="w-48 h-28 rounded-2xl bg-[#1c1c1c] border border-white/5 flex-shrink-0"></div>
+        <div class="w-48 h-28 rounded-2xl bg-[#1c1c1c] border border-white/5 flex-shrink-0"></div>
+        <div class="w-48 h-28 rounded-2xl bg-[#1c1c1c] border border-white/5 flex-shrink-0"></div>
+        <div class="w-48 h-28 rounded-2xl bg-[#1c1c1c] border border-white/5 flex-shrink-0"></div>
+        <div class="w-48 h-28 rounded-2xl bg-[#1c1c1c] border border-white/5 flex-shrink-0"></div>
+        <div class="w-48 h-28 rounded-2xl bg-[#1c1c1c] border border-white/5 flex-shrink-0"></div>
+        <div class="w-48 h-28 rounded-2xl bg-[#1c1c1c] border border-white/5 flex-shrink-0"></div>
+        <div class="w-48 h-28 rounded-2xl bg-[#1c1c1c] border border-white/5 flex-shrink-0"></div>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>

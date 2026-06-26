@@ -26,12 +26,14 @@ async function main() {
     const gifPath = gifFlagIdx !== -1 ? rest[gifFlagIdx + 1] : undefined;
 
     const { watch } = await import("./watch.js");
-    const { selector: pickedSelector, url: resolvedUrl } = await watch(url);
+    const { selector: pickedSelector, url: resolvedUrl, extractedData } = await watch(url);
 
     console.log(`\n  ✓ Grabbed selector: \x1b[35m${pickedSelector}\x1b[0m`);
     console.log(`\n🔍 Extracting...`);
 
-    const data = await extract(resolvedUrl, pickedSelector);
+    const data = extractedData
+      ? { url: resolvedUrl, selector: pickedSelector, ...extractedData } as any
+      : await extract(resolvedUrl, pickedSelector);
     console.log(`  ✓ Extracted <${data.tag}>.${data.classList.join(".")}`);
     console.log(`    ${Object.keys(data.computedStyles).length} props · ${data.keyframes.length} keyframes · ${data.webAnimations.length} web-animations`);
 

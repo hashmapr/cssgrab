@@ -35,56 +35,40 @@ interface Session {
   lastScan: ScanCandidate[];
 }
 
-// ── Spinner frames ─────────────────────────────────────────────────────────
 const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
-// ── Welcome screen ─────────────────────────────────────────────────────────
+// ── Welcome ────────────────────────────────────────────────────────────────
 function Welcome() {
   return (
     <Box flexDirection="column" alignItems="center" marginBottom={1}>
-      <Box
-        borderStyle="round"
-        borderColor="cyan"
-        paddingX={4}
-        paddingY={1}
-        flexDirection="row"
-        gap={4}
-      >
-        {/* Left panel */}
+      <Box borderStyle="round" borderColor="cyan" paddingX={4} paddingY={1} flexDirection="row" gap={4}>
         <Box flexDirection="column" alignItems="center" minWidth={28}>
           <Text color="cyan" bold>{"  ╔═══╗ ╔═══╗ ╔═══╗  "}</Text>
           <Text color="cyan">  {"║ C ║ ║ S ║ ║ S ║  "}</Text>
           <Text color="cyan">{"  ╚═══╝ ╚═══╝ ╚═══╝  "}</Text>
           <Text> </Text>
           <Text bold color="white">CSSgrab</Text>
-          <Text color="gray" dimColor>v0.1.7</Text>
+          <Text color="gray" dimColor>v0.1.10</Text>
           <Text> </Text>
           <Text color="gray" dimColor>Grab any element's CSS</Text>
           <Text color="gray" dimColor>and animations as code</Text>
         </Box>
-
-        {/* Divider */}
         <Box flexDirection="column">
           {Array.from({ length: 10 }).map((_, i) => (
             <Text key={i} color="gray" dimColor>│</Text>
           ))}
         </Box>
-
-        {/* Right panel */}
         <Box flexDirection="column" minWidth={36}>
           <Text color="yellow" bold>Getting started</Text>
           <Text> </Text>
           <Text color="gray">  <Text color="cyan">use</Text> stripe.com</Text>
           <Text color="gray" dimColor>  set active URL</Text>
           <Text> </Text>
-          <Text color="gray">  <Text color="cyan">scan</Text></Text>
-          <Text color="gray" dimColor>  list interactive elements</Text>
+          <Text color="gray">  <Text color="cyan">grab</Text> "purple CTA button"</Text>
+          <Text color="gray" dimColor>  natural language grab</Text>
           <Text> </Text>
-          <Text color="gray">  <Text color="cyan">grab</Text> 3</Text>
-          <Text color="gray" dimColor>  extract element by index</Text>
-          <Text> </Text>
-          <Text color="gray">  <Text color="cyan">watch</Text> stripe.com</Text>
-          <Text color="gray" dimColor>  click-to-pick in browser</Text>
+          <Text color="gray">  <Text color="cyan">watch</Text> framer.com</Text>
+          <Text color="gray" dimColor>  click-to-pick · Tab for anim mode</Text>
         </Box>
       </Box>
       <Text color="gray" dimColor>Type <Text color="white">help</Text> for all commands · ctrl+c to exit</Text>
@@ -92,15 +76,12 @@ function Welcome() {
   );
 }
 
-// ── Prompt line ────────────────────────────────────────────────────────────
+// ── Prompt ─────────────────────────────────────────────────────────────────
 function Prompt({ session, input }: { session: Session; input: string }) {
   const host = session.url ? new URL(session.url).hostname : null;
   return (
     <Box>
-      {host
-        ? <Text color="cyan" bold>{host}</Text>
-        : <Text color="gray" dimColor>no url</Text>
-      }
+      {host ? <Text color="cyan" bold>{host}</Text> : <Text color="gray" dimColor>no url</Text>}
       <Text color="gray" dimColor> · </Text>
       <Text color="gray" dimColor>{session.stack}</Text>
       <Text>{"\n"}</Text>
@@ -111,14 +92,13 @@ function Prompt({ session, input }: { session: Session; input: string }) {
   );
 }
 
-// ── Thinking indicator ─────────────────────────────────────────────────────
+// ── Thinking ───────────────────────────────────────────────────────────────
 function Thinking({ label, elapsed }: { label: string; elapsed: number }) {
   const [frame, setFrame] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setFrame(f => (f + 1) % SPINNER.length), 80);
     return () => clearInterval(id);
   }, []);
-
   const secs = (elapsed / 1000).toFixed(1);
   return (
     <Box gap={1}>
@@ -132,9 +112,7 @@ function Thinking({ label, elapsed }: { label: string; elapsed: number }) {
 
 // ── Scan results ───────────────────────────────────────────────────────────
 function ScanResults({ candidates }: { candidates: ScanCandidate[] }) {
-  if (!candidates.length) {
-    return <Text color="yellow">  No interactive elements found.</Text>;
-  }
+  if (!candidates.length) return <Text color="yellow">  No interactive elements found.</Text>;
   return (
     <Box flexDirection="column" marginBottom={1}>
       <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1}>
@@ -142,9 +120,7 @@ function ScanResults({ candidates }: { candidates: ScanCandidate[] }) {
           <Box key={i} flexDirection="column" marginBottom={i < candidates.length - 1 ? 1 : 0}>
             <Box gap={2}>
               <Text color="gray" dimColor>{String(i + 1).padStart(2)}.</Text>
-              <Text color={el.role === "button" ? "magenta" : "cyan"} bold>
-                {el.role.padEnd(6)}
-              </Text>
+              <Text color={el.role === "button" ? "magenta" : "cyan"} bold>{el.role.padEnd(6)}</Text>
               <Text bold>{el.text.slice(0, 38)}</Text>
               {el.hasTransition && <Text color="magenta">⚡</Text>}
               {el.hasAnimation && <Text color="blue">⟳</Text>}
@@ -161,11 +137,13 @@ function ScanResults({ candidates }: { candidates: ScanCandidate[] }) {
 }
 
 // ── Grab result ────────────────────────────────────────────────────────────
-function GrabResult({ code, explanation }: { code: string; explanation: string }) {
+function GrabResult({ code, explanation, mode }: { code: string; explanation: string; mode?: string }) {
   return (
     <Box flexDirection="column" marginBottom={1}>
-      <Box borderStyle="round" borderColor="cyan" flexDirection="column" paddingX={1}>
-        <Text color="cyan" bold>CODE</Text>
+      <Box borderStyle="round" borderColor={mode === 'animation' ? "magenta" : "cyan"} flexDirection="column" paddingX={1}>
+        <Text color={mode === 'animation' ? "magenta" : "cyan"} bold>
+          {mode === 'animation' ? '◎ ANIMATION' : 'CODE'}
+        </Text>
         <Text> </Text>
         <Text>{code}</Text>
       </Box>
@@ -180,7 +158,7 @@ function GrabResult({ code, explanation }: { code: string; explanation: string }
   );
 }
 
-// ── Streaming tokens ───────────────────────────────────────────────────────
+// ── Streaming ──────────────────────────────────────────────────────────────
 function StreamingCode({ tokens, elapsed }: { tokens: string; elapsed: number }) {
   const secs = (elapsed / 1000).toFixed(1);
   const markerIdx = tokens.indexOf("---EXPLANATION---");
@@ -247,7 +225,7 @@ function ScrollResults({ summary }: { summary: ScrollSummary }) {
 function Help() {
   const row = (cmd: string, desc: string) => (
     <Box key={cmd} gap={2}>
-      <Text color="cyan">{cmd.padEnd(28)}</Text>
+      <Text color="cyan">{cmd.padEnd(32)}</Text>
       <Text color="gray" dimColor>{desc}</Text>
     </Box>
   );
@@ -262,17 +240,13 @@ function Help() {
       <Text> </Text>
       <Text color="yellow" bold>GRAB</Text>
       {row("grab <n>", "grab by index from last scan")}
+      {row('grab "description"', "grab by natural language")}
       {row("grab <selector>", "grab by CSS selector")}
-      {row("grab <selector> <url>", "grab from specific URL")}
       <Text> </Text>
       <Text color="yellow" bold>WATCH</Text>
-      {row("watch", "open browser, click to pick element")}
+      {row("watch", "open browser · ⇧+click to select")}
       {row("watch <url>", "watch a specific URL")}
-      <Text> </Text>
-      <Text color="yellow" bold>GIF</Text>
-      {row("gif <n>", "render last-grabbed element as GIF")}
-      {row("gif <selector>", "render selector as GIF")}
-      {row("gif <selector> <url>", "render from specific URL")}
+      {row("", "Tab = toggle Element/Animation mode")}
       <Text> </Text>
       <Text color="yellow" bold>SCROLL</Text>
       {row("scroll", "scroll-scan active URL")}
@@ -374,11 +348,10 @@ function App() {
       }
 
       case "grab": {
-        if (!args.length) { pushHistory(<Text key={Date.now()} color="red">  Usage: grab &lt;n|selector|description&gt; [url]</Text>); break; }
+        if (!args.length) { pushHistory(<Text key={Date.now()} color="red">  Usage: grab &lt;n|selector|"description"&gt; [url]</Text>); break; }
         if (args[1]) session.current.url = normaliseUrl(args[1]);
         if (!session.current.url) { pushHistory(<Text key={Date.now()} color="red">  No URL set. Run: use &lt;url&gt;</Text>); break; }
 
-        // Detect natural language vs index vs CSS selector
         const rawArg = args[0];
         const isIndex = !isNaN(parseInt(rawArg, 10));
         const isCSSSelector = /[.#\[\]>:()]/.test(rawArg);
@@ -388,10 +361,7 @@ function App() {
 
         if (isIndex) {
           selector = resolveSelector(rawArg);
-          if (!selector) {
-            pushHistory(<Text key={Date.now()} color="red">  No element #{rawArg} in last scan.</Text>);
-            break;
-          }
+          if (!selector) { pushHistory(<Text key={Date.now()} color="red">  No element #{rawArg} in last scan.</Text>); break; }
         } else if (isCSSSelector) {
           selector = rawArg;
         } else if (isNaturalLanguage) {
@@ -399,17 +369,14 @@ function App() {
           setPhase({ kind: "scanning", url: session.current.url, elapsed: 0 });
           pushHistory(<Text key={Date.now()} color="cyan">  🔍 Scanning for "{rawArg}"...</Text>);
           try {
-            const { scan } = await import("./scanner.js");
+            const { scan: scanFn } = await import("./scanner.js");
             const { matchElement } = await import("./matcher.js");
-            const candidates = await scan(session.current.url);
+            const candidates = await scanFn(session.current.url!);
             session.current.lastScan = candidates;
             stopTimer();
             setPhase({ kind: "idle" });
             selector = await matchElement(rawArg, candidates);
-            if (!selector) {
-              pushHistory(<Text key={Date.now()} color="red">  No element found matching "{rawArg}"</Text>);
-              break;
-            }
+            if (!selector) { pushHistory(<Text key={Date.now()} color="red">  No element found matching "{rawArg}"</Text>); break; }
             pushHistory(<Text key={Date.now()} color="green">  ✓ Matched: <Text color="magenta">{selector}</Text></Text>);
           } catch (err) {
             stopTimer();
@@ -423,9 +390,9 @@ function App() {
 
         startTimer();
         setPhase({ kind: "extracting", selector, elapsed: 0 });
-        let data: Awaited<ReturnType<typeof extract>>;
+        let data: any;
         try {
-          data = await extract(session.current.url, selector);
+          data = await extract(session.current.url!, selector);
         } catch (err) {
           stopTimer();
           setPhase({ kind: "idle" });
@@ -443,7 +410,6 @@ function App() {
         startTimer();
         let streamedTokens = "";
         setPhase({ kind: "generating", tag: data.tag, elapsed: 0, tokens: "" });
-
         try {
           const result = await generate(data, { stack: session.current.stack }, (token: string) => {
             streamedTokens += token;
@@ -464,34 +430,37 @@ function App() {
         const watchUrl = args.length ? normaliseUrl(args[0]) : session.current.url;
         if (!watchUrl) { pushHistory(<Text key={Date.now()} color="red">  No URL set. Run: use &lt;url&gt; or watch &lt;url&gt;</Text>); break; }
 
-        pushHistory(<Text key={Date.now()} color="cyan">  Opening browser — click an element to select it</Text>);
+        pushHistory(<Text key={Date.now()} color="cyan">  Opening browser — ⇧+click to select · Tab for animation mode</Text>);
         startTimer();
         setPhase({ kind: "watching", url: watchUrl, elapsed: 0 });
 
         try {
           const { watch } = await import("./watch.js");
-          const { selector: pickedSelector, url: resolvedUrl } = await watch(watchUrl);
+          const result = await watch(watchUrl);
+          const { selector: pickedSelector, url: resolvedUrl, extractedData, mode } = result as any;
           session.current.url = resolvedUrl;
           stopTimer();
           setPhase({ kind: "idle" });
+
+          const modeTag = mode === 'animation' ? ' [animation mode]' : '';
           pushHistory(
             <Text key={Date.now()} color="green">
-              {"  ✓ Selected: "}<Text color="magenta">{pickedSelector}</Text>
+              {"  ✓ Selected: "}<Text color={mode === 'animation' ? "magenta" : "cyan"}>{pickedSelector}{modeTag}</Text>
             </Text>
           );
 
-          // Extract
           startTimer();
           setPhase({ kind: "extracting", selector: pickedSelector, elapsed: 0 });
-          const data = await extract(resolvedUrl, pickedSelector);
+          const data = extractedData
+            ? { url: resolvedUrl, selector: pickedSelector, ...extractedData } as any
+            : await extract(resolvedUrl, pickedSelector);
 
-          // Register in lastScan so gif <n> works immediately
           session.current.lastScan = [{
             selector: pickedSelector,
-            tag: data.tag,
+            tag: data.tag ?? 'div',
             text: "",
             hasTransition: false,
-            hasAnimation: data.webAnimations.length > 0,
+            hasAnimation: (data.webAnimations?.length ?? 0) > 0,
             role: "other",
           }];
 
@@ -502,37 +471,42 @@ function App() {
             break;
           }
 
-          // Auto-render GIF if animations detected
-          const hasAnim =
-            data.webAnimations.length > 0 ||
-            data.keyframes.length > 0 ||
-            (data.computedStyles["animation-name"] ?? "none") !== "none" ||
-            (data.computedStyles["transition-duration"] ?? "0s") !== "0s";
+          // Skip GIF in animation mode — not useful
+          if (mode !== 'animation') {
+            const hasAnim =
+              (data.webAnimations?.length ?? 0) > 0 ||
+              (data.keyframes?.length ?? 0) > 0 ||
+              (data.computedStyles?.["animation-name"] ?? "none") !== "none" ||
+              (data.computedStyles?.["transition-duration"] ?? "0s") !== "0s";
 
-          if (hasAnim) {
-            stopTimer();
-            setPhase({ kind: "idle" });
-            pushHistory(<Text key={Date.now()} color="cyan">  🎞  Rendering GIF preview...</Text>);
-            const { renderGif } = await import("./gif.js");
-            await renderGif(data, {}).catch((err: Error) => {
-              pushHistory(<Text key={Date.now()} color="yellow">  ⚠ GIF skipped: {err.message}</Text>);
-            });
+            if (hasAnim) {
+              stopTimer();
+              setPhase({ kind: "idle" });
+              pushHistory(<Text key={Date.now()} color="cyan">  🎞  Rendering GIF preview...</Text>);
+              const { renderGif } = await import("./gif.js");
+              await renderGif(data, {}).catch((err: Error) => {
+                pushHistory(<Text key={Date.now()} color="yellow">  ⚠ GIF skipped: {err.message}</Text>);
+              });
+            } else {
+              stopTimer();
+              setPhase({ kind: "idle" });
+            }
           } else {
             stopTimer();
             setPhase({ kind: "idle" });
+            pushHistory(<Text key={Date.now()} color="magenta">  ◎ Animation mode — observing subtree mutations...</Text>);
           }
 
-          // Generate code
           let streamedTokens = "";
           startTimer();
-          setPhase({ kind: "generating", tag: data.tag, elapsed: 0, tokens: "" });
-          const result = await generate(data, { stack: session.current.stack }, (token: string) => {
+          setPhase({ kind: "generating", tag: data.tag ?? 'div', elapsed: 0, tokens: "" });
+          const result2 = await generate(data, { stack: session.current.stack }, (token: string) => {
             streamedTokens += token;
-            setPhase({ kind: "generating", tag: data.tag, elapsed, tokens: streamedTokens });
+            setPhase({ kind: "generating", tag: data.tag ?? 'div', elapsed, tokens: streamedTokens });
           });
           stopTimer();
           setPhase({ kind: "idle" });
-          pushHistory(<GrabResult key={Date.now()} code={result.code} explanation={result.explanation} />);
+          pushHistory(<GrabResult key={Date.now()} code={result2.code} explanation={result2.explanation} mode={mode} />);
         } catch (err) {
           stopTimer();
           setPhase({ kind: "idle" });
@@ -547,7 +521,6 @@ function App() {
         if (!session.current.url) { pushHistory(<Text key={Date.now()} color="red">  No URL set. Run: use &lt;url&gt;</Text>); break; }
         const gifSelector = resolveSelector(args[0]);
         if (!gifSelector) { pushHistory(<Text key={Date.now()} color="red">  No element #{args[0]} in last scan.</Text>); break; }
-
         startTimer();
         setPhase({ kind: "extracting", selector: gifSelector, elapsed: 0 });
         try {
@@ -633,41 +606,27 @@ function App() {
 
   useInput((char, key) => {
     if (phase.kind !== "idle") return;
-
     if (key.return) {
       const line = input.trim();
       setInput("");
       if (line) runCommand(line);
       return;
     }
-
-    if (key.backspace || key.delete) {
-      setInput(i => i.slice(0, -1));
-      return;
-    }
-
+    if (key.backspace || key.delete) { setInput(i => i.slice(0, -1)); return; }
     if (key.upArrow) {
       const next = Math.min(historyIndex + 1, cmdHistory.length - 1);
       setHistoryIndex(next);
       setInput(cmdHistory[next] ?? "");
       return;
     }
-
     if (key.downArrow) {
       const next = Math.max(historyIndex - 1, -1);
       setHistoryIndex(next);
       setInput(next === -1 ? "" : cmdHistory[next] ?? "");
       return;
     }
-
-    if (key.ctrl && char === "c") {
-      exit();
-      return;
-    }
-
-    if (!key.ctrl && !key.meta && char) {
-      setInput(i => i + char);
-    }
+    if (key.ctrl && char === "c") { exit(); return; }
+    if (!key.ctrl && !key.meta && char) setInput(i => i + char);
   });
 
   const busy = phase.kind !== "idle";
@@ -677,9 +636,8 @@ function App() {
       <Static items={history}>
         {(item, i) => <Box key={i}>{item as React.ReactElement}</Box>}
       </Static>
-
       {phase.kind === "watching" && (
-        <Thinking label={`Browser open — click an element on ${new URL(phase.url).hostname} ...`} elapsed={elapsed} />
+        <Thinking label={`Browser open — ⇧+click · Tab=mode · ${new URL(phase.url).hostname}`} elapsed={elapsed} />
       )}
       {phase.kind === "scanning" && (
         <Thinking label={`Scanning ${new URL(phase.url).hostname} ...`} elapsed={elapsed} />
@@ -693,15 +651,11 @@ function App() {
       {phase.kind === "generating" && (
         <StreamingCode tokens={phase.tokens} elapsed={elapsed} />
       )}
-
-      {!busy && (
-        <Prompt session={session.current} input={input} />
-      )}
+      {!busy && <Prompt session={session.current} input={input} />}
     </Box>
   );
 }
 
-// ── Entry ──────────────────────────────────────────────────────────────────
 export async function main() {
   render(<App />, { exitOnCtrlC: true });
 }
